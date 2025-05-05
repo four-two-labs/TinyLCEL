@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Get the git root directory
 GIT_ROOT=$(git rev-parse --show-toplevel)
-VENV_PATH="${GIT_ROOT}/.venv"
+VENV_PATH="${GIT_ROOT}/.pyenv"
 
 # check if venv exists
 if [ ! -d "$VENV_PATH" ]; then
@@ -11,7 +11,7 @@ if [ ! -d "$VENV_PATH" ]; then
     exit 1
 fi
 
-source "${GIT_ROOT}/.venv/bin/activate"
+source "$VENV_PATH/bin/activate"
 
 echo "Running pre-commit hooks..."
 echo

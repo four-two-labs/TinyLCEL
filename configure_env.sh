@@ -30,13 +30,13 @@ if [ ! "$(command -v uv)" ]; then
     curl -LsSf https://astral.sh/uv/install.sh | sh -q
 fi
 
-# Check if .venv directory already exists
-if [ ! -d "${GIT_ROOT}/.venv" ]; then
-    uv venv -p 3.12 "${GIT_ROOT}/.venv"
+# Check if .pyenv directory already exists
+if [ ! -d "${GIT_ROOT}/.pyenv" ]; then
+    uv venv -p 3.12 "${GIT_ROOT}/.pyenv"
 fi
 
-source "${GIT_ROOT}/.venv/bin/activate"
+source "${GIT_ROOT}/.pyenv/bin/activate"
 uv pip install -e "${GIT_ROOT}[dev,openai]"
 
 echo "Environment configured successfully!"
-echo "To activate the environment, run: source ${GIT_ROOT}/.venv/bin/activate"
+echo "To activate the environment, run: source ${GIT_ROOT}/.pyenv/bin/activate"
