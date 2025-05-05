@@ -161,6 +161,9 @@ async def test_str_output_parser_ainvoke_failure_value(parser: StrOutputParser):
         ('```json\n{"unclosed": true}', {"unclosed": True}),
         ('```\n{"unclosed_no_lang": true}', {"unclosed_no_lang": True}),
         ('  {\n"no_fence_at_all": false\n} \n', {"no_fence_at_all": False}), # No fences at all
+        # Multi-line JSON
+        ('{\n  "key": "value",\n  "another": [\n    1,\n    2\n  ]\n}', {"key": "value", "another": [1, 2]}),
+        ('```json\n{\n  "multi": true,\n  "line": "yes"\n}\n```', {"multi": True, "line": "yes"}),
     ]
 )
 def test_json_output_parser_parse_success(json_parser: JsonOutputParser, raw_content: str, expected_parsed: Any):
