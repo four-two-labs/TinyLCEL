@@ -30,59 +30,92 @@ class SystemMessage(BaseMessage):
 
 
 class BaseChatModel(RunnableBase[MessagesInput, AIMessage], abc.ABC):
-    """Abstract base class for chat models.
+    """
+    Abstract base class for language models that expose a chat interface.
 
-    Inherits from RunnableBase, expecting a list of BaseMessages as input
-    and producing an AIMessage as output.
+    This class provides the core functionality for chat models within the
+    Tiny LangChain Expression Language (TinyLCEL) framework. It inherits
+    from `RunnableBase`, defining the input type as a list of `BaseMessage`
+    objects (`MessagesInput`) and the output type as a single `AIMessage`.
+
+    Subclasses must implement the `_generate` and `_agenerate` methods
+    to provide the specific logic for interacting with the underlying
+    language model API synchronously and asynchronously, respectively.
+
+    The `invoke` and `ainvoke` methods are implemented here, calling the
+    respective `_generate` and `_agenerate` methods.
     """
 
     @abc.abstractmethod
     def _generate(self, messages: MessagesInput) -> AIMessage:
-        """Synchronous generation method to be implemented by subclasses.
+        """
+        Synchronous generation method.
+
+        This method should be implemented by subclasses to handle the synchronous
+        call to the underlying chat model API.
 
         Args:
-            messages: The list of messages constituting the conversation history.
+            messages: A list of `BaseMessage` objects representing the
+                conversation history and prompt.
 
         Returns:
-            An AIMessage containing the model's response.
+            An `AIMessage` containing the model's response.
 
+        Raises:
+            NotImplementedError: If the subclass does not implement this method.
+            Exception: Any exception raised by the underlying API call.
         """
         ...
 
     @abc.abstractmethod
     async def _agenerate(self, messages: MessagesInput) -> AIMessage:
-        """Asynchronous generation method to be implemented by subclasses.
+        """
+        Asynchronous generation method.
+
+        This method should be implemented by subclasses to handle the asynchronous
+        call to the underlying chat model API.
 
         Args:
-            messages: The list of messages constituting the conversation history.
+            messages: A list of `BaseMessage` objects representing the
+                conversation history and prompt.
 
         Returns:
-            An awaitable resolving to an AIMessage containing the model's response.
+            An awaitable resolving to an `AIMessage` containing the model's response.
 
+        Raises:
+            NotImplementedError: If the subclass does not implement this method.
+            Exception: Any exception raised by the underlying API call.
         """
         ...
 
     def invoke(self, input: MessagesInput) -> AIMessage:
-        """Synchronously invokes the chat model with a list of messages.
+        """
+        Invoke the chat model synchronously.
+
+        This method takes a list of messages, calls the `_generate` method
+        implemented by the subclass, and returns the resulting AI message.
 
         Args:
-            input: A list of BaseMessage objects.
+            input: A list of `BaseMessage` objects.
 
         Returns:
-            An AIMessage representing the model's response.
-
+            An `AIMessage` representing the model's response.
         """
         return self._generate(input)
 
     async def ainvoke(self, input: MessagesInput) -> AIMessage:
-        """Asynchronously invokes the chat model with a list of messages.
+        """
+        Invoke the chat model asynchronously.
+
+        This method takes a list of messages, calls the `_agenerate` method
+        implemented by the subclass, and returns the resulting AI message.
 
         Args:
-            input: A list of BaseMessage objects.
+            input: A list of `BaseMessage` objects.
 
         Returns:
-            An awaitable resolving to an AIMessage representing the model's response.
-
+            An awaitable resolving to an `AIMessage` representing the model's
+            response.
         """
         return await self._agenerate(input)
 

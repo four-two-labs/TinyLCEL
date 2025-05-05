@@ -26,6 +26,6 @@ $VENV_PATH/bin/mypy --config-file $GIT_ROOT/pyproject.toml $GIT_ROOT/src
 
 # Run pytest
 echo "Running pytest..."
-$VENV_PATH/bin/pytest --cov=tinylcel --cov-report=term-missing --cov-fail-under=80 ${GIT_ROOT}/tests
+$VENV_PATH/bin/pytest --cov=tinylcel --cov-report=term-missing --cov-fail-under=90 ${GIT_ROOT}/tests
 
 
