@@ -3,6 +3,7 @@
 import abc
 import re
 import json
+import yaml
 from typing import Any
 from typing import Protocol
 from dataclasses import dataclass
@@ -149,7 +150,64 @@ class JsonOutputParser(StrOutputParser):
             return json.loads(json_string)
         except json.JSONDecodeError as e:
             raise ParseException(
-                f'Failed to parse extracted string as JSON: {e}. String was: {json_string!r}',
+                f'Failed to parse extracted string as JSON: {e}. '
+                f'String was: {json_string!r}',
                 original_text=text
             ) from e
+        
+
+@dataclass(frozen=True)
+class YamlOutputParser(StrOutputParser):
+    """
+    Parses YAML output from an LLM call.
+
+    Handles potential markdown code fences (e.g., ```yaml ... ```) and
+    leading/trailing whitespace using a regex.
+    Expects the input to the parser to have a string 'content' attribute
+    (like AIMessage).
+    Uses yaml.safe_load to prevent arbitrary code execution.
+    """
+    # Regex to extract content within optional yaml/markdown fences
+    _yaml_regex: re.Pattern = re.compile(
+        # Same regex as JSON, language tag is optional and case-insensitive
+        r"^\s*(?:```(?:yaml)?\n*)?(.*?)(?:\n*```)?\s*$",
+        re.IGNORECASE | re.DOTALL
+    )
+
+    def parse(self, output: Any) -> Any:
+        """
+        Parses the string output as YAML after extracting via regex.
+
+        Args:
+            output: An object assumed to have a 'content' attribute (e.g., AIMessage).
+
+        Returns:
+            The parsed Python object from YAML, or None if the extracted content is empty.
+
+        Raises:
+            ParseException: If the input cannot be parsed as a string, if the regex
+                fails to find a suitable YAML block, or if the extracted block
+                is invalid YAML.
+        """
+        text = super().parse(output)
+        match = self._yaml_regex.search(text)
+        if match is None:
+            raise ParseException(
+                f'Could not extract YAML block from received text: {text}',
+                original_text=text
+            )
+
+        yaml_string = match.group(1).strip()
+        if not yaml_string:
+            return None
+
+        try:
+            return yaml.safe_load(yaml_string)
+        except yaml.YAMLError as e:
+            raise ParseException(
+                f'Failed to parse extracted string as YAML: {e}. '
+                f'String was: {yaml_string!r}',
+                original_text=text
+            ) from e
+
 

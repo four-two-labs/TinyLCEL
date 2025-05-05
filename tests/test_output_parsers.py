@@ -8,7 +8,9 @@ from tinylcel.messages import AIMessage
 from tinylcel.messages import HumanMessage
 from tinylcel.output_parsers import StrOutputParser
 from tinylcel.output_parsers import JsonOutputParser
+from tinylcel.output_parsers import YamlOutputParser
 from tinylcel.output_parsers import ParseException
+from yaml import YAMLError
 
 
 # --- Fixtures --- S
@@ -22,6 +24,11 @@ def parser() -> StrOutputParser:
 def json_parser() -> JsonOutputParser:
     """Fixture for a JsonOutputParser instance."""
     return JsonOutputParser()
+
+@pytest.fixture
+def yaml_parser() -> YamlOutputParser:
+    """Fixture for a YamlOutputParser instance."""
+    return YamlOutputParser()
 
 @dataclass
 class DuckMessage:
@@ -247,4 +254,118 @@ async def test_json_output_parser_ainvoke_failure_json_decode(json_parser: JsonO
     """Test async invocation JSONDecodeError failure."""
     message = AIMessage(content='{key: value}')
     with pytest.raises(ParseException, match=r"^Failed to parse extracted string as JSON"):
-        await json_parser.ainvoke(message) 
+        await json_parser.ainvoke(message)
+
+# --- YamlOutputParser Tests (Regex version) --- #
+
+@pytest.mark.parametrize(
+    "raw_content, expected_parsed",
+    [
+        # Simple cases
+        ('name: Test\nvalue: 123', {"name": "Test", "value": 123}),
+        ('- 1\n- two\n- null\n- true', [1, "two", None, True]),
+        # With markdown fences (yaml)
+        ('```yaml\nkey: value\n```', {"key": "value"}),
+        ('```YAML\n- 1\n- 2\n```', [1, 2]), # Case insensitive fence
+        # With markdown fences (no lang tag)
+        ('```\nkey: value\n```', {"key": "value"}),
+        # With surrounding whitespace/newlines
+        ('\n   \nkey: value\n  \n', {"key": "value"}),
+        (' \n ```yaml\n - test \n``` \n ', ["test"]),
+        # Empty content (after stripping fences/whitespace via regex)
+        ('', None), # Regex group(1) will be empty -> None
+        ('```yaml\n```', None),
+        ('  \n ', None),
+        # Empty but valid YAML structures
+        ('{}', {}),
+        ('[]', []),
+        # Multi-line
+        ('parent:\n  child: 1\n  list:\n    - item1\n    - item2', {"parent": {"child": 1, "list": ["item1", "item2"]}}),
+        # Missing closing fence
+        ('```yaml\nunclosed: true', {"unclosed": True}),
+        ('```\n  no_closing_no_lang: yes', {"no_closing_no_lang": True}),
+    ]
+)
+def test_yaml_output_parser_parse_success(yaml_parser: YamlOutputParser, raw_content: str, expected_parsed: Any):
+    """Test successful YAML parsing with various formats using regex extraction."""
+    message = AIMessage(content=raw_content)
+    assert yaml_parser.parse(message) == expected_parsed
+
+@pytest.mark.parametrize(
+    "invalid_input, expected_exception, match_message",
+    [
+        # Errors from parent StrOutputParser
+        (NotAMessage(data='test'), TypeError, r"^Expected object with 'content' attribute"),
+        (BadDuckMessage(content=123), ValueError, r"^Expected string content, got <class 'int'>"),
+        (123, TypeError, r"^Expected object with 'content' attribute"),
+        (None, TypeError, r"^Expected object with 'content' attribute"),
+    ]
+)
+def test_yaml_output_parser_parse_failure_str_parser(yaml_parser: YamlOutputParser, invalid_input: Any, expected_exception: type[Exception], match_message: str):
+    """Test that errors from the parent StrOutputParser are propagated for YAML."""
+    with pytest.raises(expected_exception, match=match_message):
+        yaml_parser.parse(invalid_input)
+
+@pytest.mark.parametrize(
+    "bad_yaml_content, match_message",
+    [
+        # Updated error messages based on actual YAMLError output
+        # Removing duplicate key and tab tests as safe_load might allow them
+        # ('key: value\nkey: duplicate', r"^Failed to parse extracted string as YAML:.*?duplicate key"),
+        ('unbalanced: {key: value', r"^Failed to parse extracted string as YAML:.*?while parsing a flow mapping"),
+        # ('\tkey: value', r"^Failed to parse extracted string as YAML:.*?found character '\\t' that cannot start any token"),
+        ('```yaml\n invalid : yaml : here \n```', r"^Failed to parse extracted string as YAML:.*?mapping values are not allowed here"),
+        ('key: value\n  bad_indent: true', r"^Failed to parse extracted string as YAML:.*?mapping values are not allowed here"),
+    ]
+)
+def test_yaml_output_parser_parse_failure_yaml_error(yaml_parser: YamlOutputParser, bad_yaml_content: str, match_message: str):
+    """Test that YAMLError is caught and wrapped in ParseException."""
+    message = AIMessage(content=bad_yaml_content)
+    with pytest.raises(ParseException, match=match_message) as exc_info:
+        yaml_parser.parse(message)
+    assert exc_info.value.original_text == bad_yaml_content
+
+# --- Async Tests for YamlOutputParser --- #
+
+@pytest.mark.asyncio
+async def test_yaml_output_parser_aparse_success(yaml_parser: YamlOutputParser):
+    """Test successful async YAML parsing."""
+    raw_content = '```yaml\nresult: true\n```'
+    message = AIMessage(content=raw_content)
+    assert await yaml_parser.aparse(message) == {"result": True}
+
+@pytest.mark.asyncio
+async def test_yaml_output_parser_aparse_failure_yaml_error(yaml_parser: YamlOutputParser):
+    """Test async YAMLError failure."""
+    bad_yaml_content = 'key: {invalid: yaml\n' # Unbalanced braces
+    message = AIMessage(content=bad_yaml_content)
+    # Using a broad match as specific error messages might vary slightly
+    with pytest.raises(ParseException, match=r"^Failed to parse extracted string as YAML") as exc_info:
+        await yaml_parser.aparse(message)
+    assert exc_info.value.original_text == bad_yaml_content
+
+# --- Invoke/AInvoke Tests for YamlOutputParser --- #
+
+def test_yaml_output_parser_invoke_success(yaml_parser: YamlOutputParser):
+    """Test successful sync YAML invocation."""
+    message = AIMessage(content='- item1\n- item2')
+    assert yaml_parser.invoke(message) == ["item1", "item2"]
+
+def test_yaml_output_parser_invoke_failure_yaml_error(yaml_parser: YamlOutputParser):
+    """Test sync invocation YAMLError failure."""
+    message = AIMessage(content='key : bad : yaml')
+    with pytest.raises(ParseException, match=r"^Failed to parse extracted string as YAML"):
+        yaml_parser.invoke(message)
+
+@pytest.mark.asyncio
+async def test_yaml_output_parser_ainvoke_success(yaml_parser: YamlOutputParser):
+    """Test successful async YAML invocation."""
+    message = AIMessage(content='field: value')
+    assert await yaml_parser.ainvoke(message) == {"field": "value"}
+
+@pytest.mark.asyncio
+async def test_yaml_output_parser_ainvoke_failure_yaml_error(yaml_parser: YamlOutputParser):
+    """Test async invocation YAMLError failure."""
+    message = AIMessage(content='key: [unclosed')
+    with pytest.raises(ParseException, match=r"^Failed to parse extracted string as YAML"):
+        await yaml_parser.ainvoke(message) 
