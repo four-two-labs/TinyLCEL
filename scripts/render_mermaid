@@ -1,0 +1,95 @@
+#!/bin/sh
+
+print_usage() {
+    echo "Usage: $0 [options] [mermaid_file]"
+    echo "If no file is provided, reads from stdin and outputs to mermaid.png"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help             Display this help message"
+    echo "  -s, --scale SCALE      Set the scale factor (e.g. 2 for double size)"
+    echo "  -f, --format FORMAT    Set output format (png, svg, pdf). Default: png"
+    exit 1
+}
+
+# Default values
+scale=1
+format="png"
+
+# Parse command line options
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -h|--help)
+            print_usage
+            ;;
+        -s|--scale)
+            scale="$2"
+            shift 2
+            ;;
+        -f|--format)
+            format="$2"
+            # Validate format
+            if [ "$format" != "png" ] && [ "$format" != "svg" ] && [ "$format" != "pdf" ]; then
+                echo "Error: Invalid format '$format'. Must be png, svg, or pdf."
+                exit 1
+            fi
+            shift 2
+            ;;
+        -*)
+            echo "Unknown option: $1"
+            print_usage
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+# Check for Docker
+if ! command -v docker >/dev/null 2>&1; then
+    echo "Error: Docker is required but not installed or not in PATH"
+    exit 1
+fi
+
+# Set defaults for paths
+temp_file="temp-mermaid.mmd"
+
+# Process input source
+if [ $# -eq 1 ]; then
+    # Input from file
+    if [ ! -f "$1" ]; then
+        echo "Error: Input file '$1' does not exist"
+        exit 1
+    fi
+    input_dir=$(dirname "$1")
+    input_name=$(basename "$1")
+    output_name="$(basename "${1%.*}").$format"
+else
+    # Input from stdin
+    input_dir=$(pwd)
+    input_name="$temp_file"
+    output_name="mermaid.$format"
+    cat > "$temp_file"
+fi
+
+# Render the diagram using Docker with white background
+echo "Rendering diagram with scale=${scale}, format=${format}..."
+if ! docker run --rm -v "$input_dir:/data" minlag/mermaid-cli:latest \
+    -i "/data/$input_name" -o "/data/$output_name" -b white \
+    -s "$scale"; then
+    echo "Error: Docker command failed"
+    # Clean up temp file if needed
+    [ -f "$temp_file" ] && rm "$temp_file"
+    exit 1
+fi
+
+# Clean up temp file if created
+[ -f "$temp_file" ] && rm "$temp_file"
+
+# Check if the rendering was successful
+if [ ! -f "$input_dir/$output_name" ]; then
+    echo "Failed to create diagram"
+    exit 1
+fi
+
+echo "Diagram created successfully at $input_dir/$output_name"
+exit 0

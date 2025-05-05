@@ -1,0 +1,31 @@
+#!/bin/bash
+set -euo pipefail
+
+# Get the git root directory
+GIT_ROOT=$(git rev-parse --show-toplevel)
+VENV_PATH="${GIT_ROOT}/.venv"
+
+# check if venv exists
+if [ ! -d "$VENV_PATH" ]; then
+    echo "Virtual environment not found at $VENV_PATH, run ./configure_env.sh"
+    exit 1
+fi
+
+source "${GIT_ROOT}/.venv/bin/activate"
+
+echo "Running pre-commit hooks..."
+echo
+
+# Run ruff
+echo "Running ruff..."
+$VENV_PATH/bin/ruff check --config $GIT_ROOT/pyproject.toml $GIT_ROOT/src
+
+# Run mypy
+echo "Running mypy..."
+$VENV_PATH/bin/mypy --config-file $GIT_ROOT/pyproject.toml $GIT_ROOT/src
+
+# Run pytest
+echo "Running pytest..."
+$VENV_PATH/bin/pytest --cov=tinylcel --cov-report=term-missing --cov-fail-under=80 ${GIT_ROOT}/tests
+
+
