@@ -13,10 +13,6 @@ from tinylcel.runnable import RunnableBase
 class HasContent(Protocol):
     content: Any
 
-@runtime_checkable
-class HasStringContent(Protocol):
-    content: str
-
 
 @dataclass
 class BaseOutputParser[OutputType](RunnableBase[Any, OutputType], abc.ABC):
@@ -68,28 +64,27 @@ class StrOutputParser(BaseOutputParser[str]):
     with string content (like AIMessage) into a simple string.
     """
 
-    def parse(self, output: HasContent | HasStringContent | str) -> str:
+    def parse(self, input: HasContent | str) -> str:
         """
         Extracts the string content from the input.
 
         Args:
-            output: An object assumed to have a 'content' attribute (e.g., BaseMessage).
+            input: An object assumed to have a 'content' attribute (e.g., BaseMessage).
 
         Returns:
             The string content.
 
         Raises:
-            TypeError: If the output is not a BaseMessage or doesn't have 'content'.
+            TypeError: If the input is not a BaseMessage or doesn't have 'content'.
             ValueError: If the content is not a string.
         """
         content: Any | None = None
-        match output:
-            case HasStringContent(content=content): ...                            
+        match input:
             case HasContent(content=content): ...
             case str() as content: ...            
             case _:
                 raise TypeError(
-                    f"Expected object with 'content' attribute, got {type(output)}"
+                    f"Expected object with 'content' attribute, got {type(input)}"
                 )
         
         if isinstance(content, str):
