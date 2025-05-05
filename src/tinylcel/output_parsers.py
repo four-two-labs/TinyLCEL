@@ -1,6 +1,8 @@
 """Output parsers for TinyLCEL."""
 
 import abc
+import re
+import json
 from typing import Any
 from typing import Protocol
 from dataclasses import dataclass
@@ -9,12 +11,20 @@ from typing import runtime_checkable
 from tinylcel.runnable import RunnableBase
 
 
+
 @runtime_checkable
 class HasContent(Protocol):
     content: Any
 
 
-@dataclass
+class ParseException(Exception):
+    """Base exception for output parsing errors."""
+    def __init__(self, message: str, original_text: str | None = None):
+        super().__init__(message)
+        self.original_text = original_text
+
+
+@dataclass(frozen=True)
 class BaseOutputParser[OutputType](RunnableBase[Any, OutputType], abc.ABC):
     """
     Abstract base class for parsing the output of an LLM call.
@@ -57,7 +67,7 @@ class BaseOutputParser[OutputType](RunnableBase[Any, OutputType], abc.ABC):
         return await self.aparse(input)
 
 
-@dataclass
+@dataclass(frozen=True)
 class StrOutputParser(BaseOutputParser[str]):
     """
     Parses the output of an LLM call that is expected to be a message
@@ -91,4 +101,55 @@ class StrOutputParser(BaseOutputParser[str]):
             return content
 
         raise ValueError(f"Expected string content, got {type(content)}")
+
+
+@dataclass(frozen=True)
+class JsonOutputParser(StrOutputParser):
+    """
+    Parses JSON output from an LLM call.
+
+    Handles potential markdown code fences (e.g., ```json ... ```) and
+    leading/trailing whitespace.
+    Expects the input to the parser to have a string 'content' attribute
+    (like AIMessage).
+    """
+    _json_regex: re.Pattern = re.compile(
+        r"^\s*(?:```(?:json)?\n*)?(.*?)(?:\n*```)?\s*$",
+        re.IGNORECASE | re.DOTALL
+    )
+
+    def parse(self, output: Any) -> Any:
+        """
+        Parses the string output into a Python object via JSON.
+
+        Args:
+            output: An object assumed to have a 'content' attribute (e.g., AIMessage).
+
+        Returns:
+            The parsed Python object (dict, list, str, int, float, bool, None).
+
+        Raises:
+            ParseEx: If the input cannot be parsed as a string,
+                if the regex fails to find a suitable JSON block, or if the
+                extracted block is invalid JSON.
+        """
+        text = super().parse(output)
+        match = self._json_regex.search(text)
+        if match is None:
+            raise ParseException(
+                f'Could not extract JSON block from received text: {text}',
+                original_text=text
+            )
+
+        json_string = match.group(1).strip()
+        if not json_string:
+            return {}
+
+        try:
+            return json.loads(json_string)
+        except json.JSONDecodeError as e:
+            raise ParseException(
+                f'Failed to parse extracted string as JSON: {e}. String was: {json_string!r}',
+                original_text=text
+            ) from e
 
