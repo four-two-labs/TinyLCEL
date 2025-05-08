@@ -6,8 +6,10 @@ from dataclasses import dataclass
 from typing import Any
 
 import openai
+from openai import NOT_GIVEN
 from openai import AzureOpenAI
 from openai import AsyncAzureOpenAI
+from openai._types import NotGiven
 
 from tinylcel.messages import AIMessage
 from tinylcel.messages import BaseMessage
@@ -83,11 +85,12 @@ class ChatOpenAI(BaseChatModel):
         >>> print(result)
     """
     model: str = 'gpt-3.5-turbo'
-    temperature: float = 0.7
-    max_tokens: int | None = None
     openai_api_key: str | None = field(default=None, repr=False)
-    max_retries: int | None = field(default=3, repr=True)
-    timeout: int | None = field(default=60, repr=True)
+    temperature: float | NotGiven = field(default=NOT_GIVEN, repr=True)
+    max_tokens: int | NotGiven = field(default=NOT_GIVEN, repr=True)
+    max_completion_tokens: int | NotGiven = field(default=NOT_GIVEN, repr=True)    
+    max_retries: int = field(default=openai.DEFAULT_MAX_RETRIES, repr=True)
+    timeout: int | NotGiven = field(default=NOT_GIVEN, repr=True)
 
     _client: openai.OpenAI = field(init=False, repr=False)
     _async_client: openai.AsyncOpenAI = field(init=False, repr=False)
@@ -153,18 +156,18 @@ class ChatOpenAI(BaseChatModel):
         """
         message_dicts = [self._convert_message_to_dict(m) for m in messages]
         api_kwargs: dict[str, Any] = {
-            "model": self.model,
-            "messages": message_dicts,
-            "temperature": self.temperature,
+            'model': self.model,
+            'messages': message_dicts,
+            'temperature': self.temperature,
+            'max_tokens': self.max_tokens,
+            'max_completion_tokens': self.max_completion_tokens,
         }
-        if self.max_tokens is not None:
-            api_kwargs["max_tokens"] = self.max_tokens
 
         response = self._client.chat.completions.create(**api_kwargs)
         choice = response.choices[0]
-        if choice.message.content is None:
-             # Handle cases like function calls or empty responses if needed later
-            raise ValueError("OpenAI response content is None")
+        if choice.message.content is None:             
+            raise ValueError('OpenAI response content is None')
+        
         return AIMessage(content=choice.message.content)
 
     async def _agenerate(self, messages: MessagesInput) -> AIMessage:
@@ -186,18 +189,18 @@ class ChatOpenAI(BaseChatModel):
         """
         message_dicts = [self._convert_message_to_dict(m) for m in messages]
         api_kwargs: dict[str, Any] = {
-            "model": self.model,
-            "messages": message_dicts,
-            "temperature": self.temperature,
+            'model': self.model,
+            'messages': message_dicts,
+            'temperature': self.temperature,
+            'max_tokens': self.max_tokens,
+            'max_completion_tokens': self.max_completion_tokens,
         }
-        if self.max_tokens is not None:
-            api_kwargs["max_tokens"] = self.max_tokens
 
         response = await self._async_client.chat.completions.create(**api_kwargs)
         choice = response.choices[0]
         if choice.message.content is None:
-             # Handle cases like function calls or empty responses if needed later
-            raise ValueError("OpenAI response content is None")
+            raise ValueError('OpenAI response content is None')
+        
         return AIMessage(content=choice.message.content)
 
 
@@ -263,6 +266,7 @@ class AzureChatOpenAI(ChatOpenAI):
             max_retries=self.max_retries,
             timeout=self.timeout,
         )
+
         self._async_client = AsyncAzureOpenAI(
             api_key=resolved_api_key,
             azure_endpoint=self.azure_endpoint,
@@ -270,8 +274,6 @@ class AzureChatOpenAI(ChatOpenAI):
             max_retries=self.max_retries,
             timeout=self.timeout,
         )
+
         # If azure_deployment is set, it should be used as the model
-        # for Azure API calls. The _generate and _agenerate methods
-        # in the parent class use self.model.
-        if self.azure_deployment:
-            self.model = self.azure_deployment
+        self.model = self.azure_deployment or self.model

@@ -1,6 +1,6 @@
 [project]
 name = 'tinylcel'
-version = '0.1.2'
+version = '0.1.3'
 description = 'A tiny implementation of LangChain Expression Language (LCEL)'
 authors = [
     { name = 'Ali Mosavian', email = "ali@42labs.ai" },
