@@ -1,6 +1,6 @@
 [project]
 name = 'tinylcel'
-version = '0.1.0'
+version = '0.1.1'
 description = 'A tiny implementation of LangChain Expression Language (LCEL)'
 authors = [
     { name = 'Ali Mosavian', email = "ali@42labs.ai" },
@@ -28,6 +28,7 @@ dev = [
 openai = [
     'openai>=1.7.0,<2.0.0',
 ]
+
 
 [build-system]
 requires = ['setuptools>=61.0']

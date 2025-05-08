@@ -1,33 +1,23 @@
 import asyncio
-from typing import Dict
 
 from dotenv import load_dotenv
 
-from tinylcel.runnable import runnable
-from tinylcel.messages import HumanMessage
-from tinylcel.messages import MessagesInput
-from tinylcel.runnable import RunnableLambda
+from tinylcel.prompts import ChatPromptTemplate
 from tinylcel.chat_models.openai import ChatOpenAI
 from tinylcel.output_parsers import StrOutputParser
-from tinylcel.prompts import ChatPromptTemplate
-
-
-@runnable
-def create_prompt(inputs: Dict[str, str]) -> MessagesInput:
-    topic = inputs.get('topic', 'bears')
-    prompt = f'Tell me a single interesting fact about {topic}.'
-    return [HumanMessage(content=prompt)]
 
 
 async def main():
     load_dotenv()    
-    llm = ChatOpenAI(model='gpt-4o-mini', temperature=0.7)
+    llm = ChatOpenAI(model='gpt-4o', temperature=0.75)
 
     chain = (
-        create_prompt 
+        ChatPromptTemplate.from_messages([
+            ('system', 'You are a helpful assistant that can answer questions.'),
+            ('human', 'Tell me a single interesting fact about {topic}.'),
+        ])
         | llm 
-        | StrOutputParser() 
-        | RunnableLambda(lambda s: s.upper())
+        | StrOutputParser()
     )
 
     input_data = {
