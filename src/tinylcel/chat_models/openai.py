@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from typing import Any
 
 import openai
+from openai import AzureOpenAI
+from openai import AsyncAzureOpenAI
 
 from tinylcel.messages import AIMessage
 from tinylcel.messages import BaseMessage
@@ -58,7 +60,7 @@ class ChatOpenAI(BaseChatModel):
         model: The name of the OpenAI model to use (e.g., "gpt-4o-mini",
             "gpt-3.5-turbo"). Defaults to "gpt-3.5-turbo".
         temperature: Sampling temperature for generation (0 to 2).
-Higher values make output more random, lower values make it more deterministic.
+            Higher values make output more random, lower values make it more deterministic.
             Defaults to 0.7.
         max_tokens: Optional maximum number of tokens to generate.
             Defaults to None (no limit imposed by this class, but the model may
@@ -84,6 +86,8 @@ Higher values make output more random, lower values make it more deterministic.
     temperature: float = 0.7
     max_tokens: int | None = None
     openai_api_key: str | None = field(default=None, repr=False)
+    max_retries: int | None = field(default=3, repr=True)
+    timeout: int | None = field(default=60, repr=True)
 
     _client: openai.OpenAI = field(init=False, repr=False)
     _async_client: openai.AsyncOpenAI = field(init=False, repr=False)
@@ -95,8 +99,16 @@ Higher values make output more random, lower values make it more deterministic.
         `openai.OpenAI` and `openai.AsyncOpenAI`.
         """
         resolved_api_key = _get_openai_api_key(self.openai_api_key)
-        self._client = openai.OpenAI(api_key=resolved_api_key)
-        self._async_client = openai.AsyncOpenAI(api_key=resolved_api_key)
+        self._client = openai.OpenAI(
+            api_key=resolved_api_key,
+            max_retries=self.max_retries,
+            timeout=self.timeout,
+        )
+        self._async_client = openai.AsyncOpenAI(
+            api_key=resolved_api_key,
+            max_retries=self.max_retries,
+            timeout=self.timeout,
+        )
 
     def _convert_message_to_dict(self, message: BaseMessage) -> dict[str, str]:
         """Convert a TinyLCEL message to the OpenAI API dictionary format.
@@ -187,3 +199,79 @@ Higher values make output more random, lower values make it more deterministic.
              # Handle cases like function calls or empty responses if needed later
             raise ValueError("OpenAI response content is None")
         return AIMessage(content=choice.message.content)
+
+
+@dataclass
+class AzureChatOpenAI(ChatOpenAI):
+    """
+    A chat model that uses the Azure OpenAI Service.
+
+    This class inherits from `ChatOpenAI` and adapts it for use with
+    Azure OpenAI deployments.
+
+    Authentication:
+        Requires an Azure OpenAI API key, an endpoint, and an API version.
+        The API key can be provided via `openai_api_key` or the
+        `OPENAI_API_KEY` (or `AZURE_OPENAI_API_KEY`) environment variable.
+        The endpoint and API version must be provided.
+
+    Attributes:
+        azure_endpoint: The endpoint URL for your Azure OpenAI resource.
+        api_version: The API version for the Azure OpenAI service
+            (e.g., "2023-07-01-preview").
+        azure_deployment: The name of your Azure OpenAI deployment. This will be
+            used as the `model` parameter in API calls.
+        model: This field is inherited from ChatOpenAI. For Azure, it's
+            recommended to set this to your `azure_deployment` name.
+            If `azure_deployment` is provided, `model` will be overridden
+            by `azure_deployment` in API calls.
+        temperature: Sampling temperature (0 to 2). Defaults to 0.7.
+        max_tokens: Optional maximum number of tokens. Defaults to None.
+        openai_api_key: Optional Azure OpenAI API key.
+
+    Examples:
+        >>> from tinylcel.chat_models.openai import AzureChatOpenAI
+        >>> from tinylcel.messages import HumanMessage
+        >>> # Assumes AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT,
+        >>> # AZURE_OPENAI_DEPLOYMENT_NAME and AZURE_OPENAI_API_VERSION
+        >>> # environment variables are set, or values are passed directly.
+        >>> model = AzureChatOpenAI(
+        ...     azure_endpoint="YOUR_AZURE_ENDPOINT",
+        ...     api_version="YOUR_API_VERSION",
+        ...     azure_deployment="your-deployment-name",
+        ...     model="your-deployment-name" # Often same as azure_deployment
+        ... )
+        >>> response = model.invoke([HumanMessage(content="Hello Azure OpenAI!")])
+        >>> print(response.content)
+    """
+    azure_endpoint: str = field(default='', repr=True)
+    api_version: str | None = field(default=None, repr=True)
+    azure_deployment: str | None = field(default=None, repr=True)
+
+    # Override clients to be Azure specific
+    _client: AzureOpenAI = field(init=False, repr=False)
+    _async_client: AsyncAzureOpenAI = field(init=False, repr=False)
+
+    def __post_init__(self):
+        """Initializes the Azure OpenAI clients."""
+        resolved_api_key = _get_openai_api_key(self.openai_api_key)
+
+        self._client = AzureOpenAI(
+            api_key=resolved_api_key,
+            azure_endpoint=self.azure_endpoint,
+            api_version=self.api_version,
+            max_retries=self.max_retries,
+            timeout=self.timeout,
+        )
+        self._async_client = AsyncAzureOpenAI(
+            api_key=resolved_api_key,
+            azure_endpoint=self.azure_endpoint,
+            api_version=self.api_version,
+            max_retries=self.max_retries,
+            timeout=self.timeout,
+        )
+        # If azure_deployment is set, it should be used as the model
+        # for Azure API calls. The _generate and _agenerate methods
+        # in the parent class use self.model.
+        if self.azure_deployment:
+            self.model = self.azure_deployment
