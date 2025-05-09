@@ -16,7 +16,7 @@ async def main():
         azure_endpoint=os.getenv('AZURE_OPENAI_ENDPOINT'),
         api_version=os.getenv('AZURE_OPENAI_API_VERSION'),
         azure_deployment=os.getenv('AZURE_OPENAI_DEPLOYMENT_NAME'),
-        temperature=0.75,
+        #temperature=0.75,
     )
 
     chain = (
