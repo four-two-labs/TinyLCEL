@@ -9,7 +9,6 @@ from tinylcel.messages import MessagesInput
 from tinylcel.runnable import RunnableLambda
 from tinylcel.chat_models.openai import ChatOpenAI
 from tinylcel.output_parsers import StrOutputParser
-from tinylcel.prompts import ChatPromptTemplate
 
 
 @runnable

@@ -1,0 +1,34 @@
+#!/bin/bash
+set -euo pipefail
+
+# Define colors for output
+CYAN='\033[0;36m'
+RED='\033[0;31m'
+NC='\033[0m'
+GREEN='\033[0;32m'
+ORANGE='\033[0;33m'
+
+SCRIPT_PATH=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+PROJECT_ROOT=$(cd "$SCRIPT_PATH/.." && pwd)
+VENV_ACTIVATE=$(find "$PROJECT_ROOT" -type f | grep ".*/bin/activate$")
+VENV_BIN_PATH=$(dirname "$VENV_ACTIVATE")
+
+if [ -z "$VENV_ACTIVATE" ]; then
+    echo -e "${RED}No virtual environment found${NC}"
+    exit 1
+fi
+
+echo -e "===${ORANGE}Lint checks${NC}==="
+$VENV_BIN_PATH/ruff check --config "$PROJECT_ROOT/pyproject.toml" "$PROJECT_ROOT"/{src,tests}
+echo -e "${GREEN}OK${NC}"
+echo
+
+echo -e "===${ORANGE}Static type checks${NC}==="
+$VENV_BIN_PATH/mypy --config "$PROJECT_ROOT/pyproject.toml" "$PROJECT_ROOT"/{src,tests}
+echo -e "${GREEN}OK${NC}"
+echo
+
+echo -e "===${ORANGE}Running tests${NC}==="
+$VENV_BIN_PATH/pytest -q "$PROJECT_ROOT/tests"
+echo -e "${GREEN}OK${NC}"
+echo 

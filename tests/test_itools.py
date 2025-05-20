@@ -1,5 +1,5 @@
 import asyncio
-from typing import AsyncIterable
+from typing import AsyncIterable, Any, Iterable, List, Tuple, Optional
 
 import pytest
 
@@ -12,7 +12,7 @@ from tinylcel.itools import abatch
 
 
 # Helper async generator for testing
-async def async_gen(data: list) -> AsyncIterable:
+async def async_gen(data: List[Any]) -> AsyncIterable[Any]:
     for item in data:
         await asyncio.sleep(0)  # Yield control
         yield item
@@ -30,9 +30,9 @@ async def async_gen(data: list) -> AsyncIterable:
         ((5, 5), []),
     ],
 )
-async def test_arange(args: tuple[int, ...], expected: list[int]):
+async def test_arange(args: Tuple[int, ...], expected: List[int]) -> None:
     """Test the arange async generator."""
-    result = [i async for i in arange(*args)]
+    result = [i async for i in arange(*args)]  # type: ignore[attr-defined]
     assert result == expected
 
 
@@ -48,7 +48,7 @@ async def test_arange(args: tuple[int, ...], expected: list[int]):
         ([], [], []),
     ],
 )
-async def test_azip(a_data: list, b_data: list, expected: list[tuple]):
+async def test_azip(a_data: List[Any], b_data: List[Any], expected: List[Tuple[Any, Any]]) -> None:
     """Test the azip async generator."""
     a = async_gen(a_data)
     b = async_gen(b_data)
@@ -68,7 +68,7 @@ async def test_azip(a_data: list, b_data: list, expected: list[tuple]):
         ([], None, []),
     ],
 )
-def test_take(iterable, n: int | None, expected: list):
+def test_take(iterable: Iterable[Any], n: Optional[int], expected: List[Any]) -> None:
     """Test the take function."""
     result = list(take(iterable, n))
     assert result == expected
@@ -86,7 +86,7 @@ def test_take(iterable, n: int | None, expected: list):
         ([], None, []),
     ],
 )
-async def test_atake(data: list, n: int | None, expected: list):
+async def test_atake(data: List[Any], n: Optional[int], expected: List[Any]) -> None:
     """Test the atake async generator."""
     aiterable = async_gen(data)
     result = [item async for item in atake(aiterable, n)]
@@ -106,7 +106,7 @@ async def test_atake(data: list, n: int | None, expected: list):
         ([], None, []), # Corrected: batch(None) on empty yields nothing
     ],
 )
-def test_batch(iterable, batch_size: int | None, expected: list[list]):
+def test_batch(iterable: Iterable[Any], batch_size: Optional[int], expected: List[List[Any]]) -> None:
     """Test the batch function."""
     result = list(batch(iterable, batch_size))
     assert result == expected # Simplified assertion
@@ -125,7 +125,7 @@ def test_batch(iterable, batch_size: int | None, expected: list[list]):
         ([], None, []), # Implementation yields nothing for empty async iterable with None size
     ],
 )
-async def test_abatch(data: list, batch_size: int | None, expected: list[list]):
+async def test_abatch(data: List[Any], batch_size: Optional[int], expected: List[List[Any]]) -> None:
     """Test the abatch async generator."""
     aiterable = async_gen(data)
     result = [item async for item in abatch(aiterable, batch_size)]

@@ -34,7 +34,7 @@ async def main():
     # For this general example, we'll use the deployment's default dimension.
     embedder = AzureOpenAIEmbeddings(
         dimensions=512,
-        openai_api_key=api_key,
+        api_key=api_key,
         azure_endpoint=azure_endpoint,
         api_version=api_version,
         azure_deployment=azure_deployment

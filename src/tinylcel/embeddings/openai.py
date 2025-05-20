@@ -1,6 +1,6 @@
 """Implementation of embedding models using the OpenAI API."""
 
-from typing import Any
+from typing import Any, Dict, List
 from dataclasses import field
 from dataclasses import dataclass
 from dataclasses import KW_ONLY
@@ -12,8 +12,9 @@ from openai import AsyncAzureOpenAI
 from openai._types import NOT_GIVEN
 from openai._types import NotGiven
 
+
+from tinylcel.utils.auth import get_api_key
 from tinylcel.embeddings.base import BaseEmbeddings
-from tinylcel.chat_models.openai import _get_openai_api_key
 
 
 @dataclass
@@ -26,7 +27,7 @@ class OpenAIEmbeddings(BaseEmbeddings):
 
     Attributes:
         model: The name of the OpenAI embedding model to use.
-        openai_api_key: Optional OpenAI API key. If not provided, the client
+        api_key: Optional OpenAI API key. If not provided, the client
             will attempt to use the `OPENAI_API_KEY` environment variable.
         base_url: Optional custom base URL for the OpenAI API.
         dimensions: Optional. The number of dimensions the resulting output 
@@ -53,20 +54,21 @@ class OpenAIEmbeddings(BaseEmbeddings):
         512
     """
     model: str = 'text-embedding-ada-002'
-    openai_api_key: str | None = field(default=None, repr=False)
+    api_key: str | None = field(default=None, repr=False)
     base_url: str | None = field(default=None, repr=True)
     dimensions: int | None = field(default=None, repr=True)
     max_retries: int = field(default=openai.DEFAULT_MAX_RETRIES, repr=True)
     timeout: float | Timeout | NotGiven = field(default=NOT_GIVEN, repr=True)
 
-    _client: openai.OpenAI = field(init=False, repr=False)
-    _async_client: openai.AsyncOpenAI = field(init=False, repr=False)
+    _client: openai.OpenAI = field(init=True, repr=False, default=None)  # type: ignore
+    _async_client: openai.AsyncOpenAI = field(init=True, repr=False, default=None)  # type: ignore
 
-    def __post_init__(self):
+
+    def __post_init__(self) -> None:
         """Initializes the synchronous and asynchronous OpenAI clients."""
-        resolved_api_key = _get_openai_api_key(self.openai_api_key)
+        resolved_api_key = get_api_key(self.api_key, 'OPENAI_API_KEY', 'OpenAI')
         
-        client_kwargs = {
+        client_kwargs: Dict[str, Any] = {
             'api_key': resolved_api_key,
             'max_retries': self.max_retries,
             'timeout': self.timeout
@@ -74,10 +76,18 @@ class OpenAIEmbeddings(BaseEmbeddings):
         if self.base_url:
             client_kwargs['base_url'] = self.base_url
 
-        self._client = openai.OpenAI(**client_kwargs)
-        self._async_client = openai.AsyncOpenAI(**client_kwargs)
+        self._client = (
+            openai.OpenAI(**client_kwargs)  # type: ignore[arg-type]
+            if self._client is None
+            else self._client
+        )
+        self._async_client = (
+            openai.AsyncOpenAI(**client_kwargs)  # type: ignore[arg-type]
+            if self._async_client is None
+            else self._async_client
+        )
 
-    def _prepare_create_embedding_kwargs(self, texts: list[str]) -> dict[str, Any]:
+    def _prepare_create_embedding_kwargs(self, texts: List[str]) -> Dict[str, Any]:
         """Prepares the keyword arguments for the OpenAI embeddings.create call.
 
         Args:
@@ -168,6 +178,7 @@ class OpenAIEmbeddings(BaseEmbeddings):
         embeddings = await self._aembed_with_client(self._async_client, [text])
         return embeddings[0]
 
+
 @dataclass
 class AzureOpenAIEmbeddings(OpenAIEmbeddings):
     """Azure OpenAI Service embedding model integration.
@@ -180,7 +191,7 @@ class AzureOpenAIEmbeddings(OpenAIEmbeddings):
         azure_deployment: str. The name of your Azure OpenAI deployment. This will be used as the `model`.
     
     All other parameters from `OpenAIEmbeddings` (like `model`, `dimensions`, 
-    `openai_api_key`, `max_retries`, `timeout`) are also available. If `azure_deployment`
+    `api_key`, `max_retries`, `timeout`) are also available. If `azure_deployment`
     is provided, it will override the `model` attribute.
 
     Example:
@@ -202,24 +213,24 @@ class AzureOpenAIEmbeddings(OpenAIEmbeddings):
     azure_deployment: str | None = None # Deployment name often acts as model name
 
     # Override client types to be Azure specific
-    _client: AzureOpenAI = field(init=False, repr=False)
-    _async_client: AsyncAzureOpenAI = field(init=False, repr=False)
+    _client: AzureOpenAI = field(init=True, repr=False, default=None)  # type: ignore
+    _async_client: AsyncAzureOpenAI = field(init=True, repr=False, default=None)  # type: ignore
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Initializes the Azure OpenAI clients.
         
         Note: Calls super().__post_init__() to ensure parent class
-        attributes like openai_api_key are processed if needed, though here
+        attributes like api_key are processed if needed, though here
         we re-initialize clients entirely for Azure.
         """
         # Though OpenAIEmbeddings.__post_init__ initializes clients, 
         # we re-initialize them here specifically for Azure.
-        # The `openai_api_key` (and its resolution via _get_openai_api_key) 
+        # The `api_key` (and its resolution via get_api_key) 
         # and other config like `max_retries`, `timeout` are inherited.
         
-        resolved_api_key = _get_openai_api_key(self.openai_api_key)
+        resolved_api_key = get_api_key(self.api_key, 'AZURE_OPENAI_API_KEY', 'Azure OpenAI')
 
-        client_kwargs: dict[str, Any] = {
+        client_kwargs: Dict[str, Any] = {
             'api_key': resolved_api_key,
             'azure_endpoint': self.azure_endpoint,
             'api_version': self.api_version,
@@ -231,13 +242,101 @@ class AzureOpenAIEmbeddings(OpenAIEmbeddings):
         # the AzureOpenAI client might not support it in the same way.
         # For now, not passing self.base_url to Azure clients.
 
-        self._client = AzureOpenAI(**client_kwargs)
-        self._async_client = AsyncAzureOpenAI(**client_kwargs)
-
+        self._client = (
+            AzureOpenAI(**client_kwargs)  # type: ignore[arg-type]
+            if self._client is None
+            else self._client
+        )
+        self._async_client = (
+            AsyncAzureOpenAI(**client_kwargs)  # type: ignore[arg-type]
+            if self._async_client is None
+            else self._async_client
+        )
         # If azure_deployment is set, it should be used as the model name for API calls.
         # The inherited _prepare_create_embedding_kwargs uses self.model.
         if self.azure_deployment:
             self.model = self.azure_deployment
+
         elif not self.model:
             raise ValueError("Either 'azure_deployment' or a valid 'model' name must be provided for Azure OpenAI embeddings.")
+        
+    @classmethod
+    def from_client(
+        cls,
+        client: AzureOpenAI,  # type: ignore
+        async_client: AsyncAzureOpenAI,  # type: ignore
+        model: str,
+        dimensions: int | None = None,
+        max_retries: int = openai.DEFAULT_MAX_RETRIES,
+        timeout: float | Timeout | NotGiven = NOT_GIVEN,
+    ) -> 'AzureOpenAIEmbeddings':
+        """Create an AzureOpenAIEmbeddings instance from pre-configured clients.
 
+        Args:
+            client: The synchronous Azure OpenAI client.
+            async_client: The asynchronous Azure OpenAI client.
+            model: The model name.
+            dimensions: Optional embedding dimensions.
+            max_retries: Max retries for new client copies.
+            timeout: Timeout for new client copies.
+            azure_endpoint: The endpoint URL for your Azure OpenAI resource.
+            api_version: The API version for the Azure OpenAI service.
+            azure_deployment: The name of your Azure OpenAI deployment.
+
+        Returns:
+            A new instance of AzureOpenAIEmbeddings.
+        """
+        instance = cls(
+            model=model,
+            dimensions=dimensions,
+            max_retries=max_retries,
+            timeout=timeout,
+            api_key='not_used_with_azure_client',
+            api_version='not_used_with_azure_client',            
+            azure_endpoint='not_used_with_azure_client'
+        )
+        instance._client = client.copy(timeout=timeout, max_retries=max_retries)
+        instance._async_client = async_client.copy(timeout=timeout, max_retries=max_retries)
+        return instance
+
+    
+def from_client(
+    client: openai.OpenAI,
+    async_client: openai.AsyncOpenAI,
+    model: str,
+    dimensions: int | None = None,
+    max_retries: int = openai.DEFAULT_MAX_RETRIES,
+    timeout: float | Timeout | NotGiven = NOT_GIVEN
+) -> OpenAIEmbeddings:
+    """Create an OpenAIEmbeddings instance from pre-configured clients."""
+    return OpenAIEmbeddings(
+        model=model,
+        dimensions=dimensions,
+        max_retries=max_retries,
+        timeout=timeout,
+        api_key='not_used_with_from_client',
+        _client=client.copy(timeout=timeout, max_retries=max_retries),
+        _async_client=async_client.copy(timeout=timeout, max_retries=max_retries)
+    )
+
+
+def from_azure_client(
+    client: AzureOpenAI,
+    async_client: AsyncAzureOpenAI,
+    model: str,
+    dimensions: int | None = None,
+    max_retries: int = openai.DEFAULT_MAX_RETRIES,
+    timeout: float | Timeout | NotGiven = NOT_GIVEN,
+) -> AzureOpenAIEmbeddings:
+    """Create an AzureOpenAIEmbeddings instance from pre-configured clients."""
+    return AzureOpenAIEmbeddings(
+        model=model,
+        dimensions=dimensions,
+        max_retries=max_retries,
+        timeout=timeout,
+        api_key='not_used_with_from_azure_client',
+        azure_endpoint='not_used_with_from_azure_client',
+        api_version='not_used_with_from_azure_client',
+        _client=client.copy(timeout=timeout, max_retries=max_retries),
+        _async_client=async_client.copy(timeout=timeout, max_retries=max_retries)
+    )

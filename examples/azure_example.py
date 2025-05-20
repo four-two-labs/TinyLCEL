@@ -12,7 +12,7 @@ async def main():
     load_dotenv()    
     llm = AzureChatOpenAI(
         model=os.getenv('AZURE_OPENAI_MODEL'),
-        openai_api_key=os.getenv('AZURE_OPENAI_APIKEY'),
+        api_key=os.getenv('AZURE_OPENAI_APIKEY'),
         azure_endpoint=os.getenv('AZURE_OPENAI_ENDPOINT'),
         api_version=os.getenv('AZURE_OPENAI_API_VERSION'),
         azure_deployment=os.getenv('AZURE_OPENAI_DEPLOYMENT_NAME'),

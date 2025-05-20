@@ -2,7 +2,7 @@
 
 import pytest
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Type
 
 from tinylcel.messages import AIMessage
 from tinylcel.messages import HumanMessage
@@ -10,7 +10,6 @@ from tinylcel.output_parsers import StrOutputParser
 from tinylcel.output_parsers import JsonOutputParser
 from tinylcel.output_parsers import YamlOutputParser
 from tinylcel.output_parsers import ParseException
-from yaml import YAMLError
 
 
 # --- Fixtures --- S
@@ -59,7 +58,7 @@ class NotAMessage:
         (AIMessage(content=''), ''), # Empty string
     ]
 )
-def test_str_output_parser_parse_success(parser: StrOutputParser, input_message, expected_output: str):
+def test_str_output_parser_parse_success(parser: StrOutputParser, input_message: Any, expected_output: str) -> None:
     """Test successful parsing of various message types."""
     assert parser.parse(input_message) == expected_output
 
@@ -73,7 +72,7 @@ def test_str_output_parser_parse_success(parser: StrOutputParser, input_message,
         (['list'], TypeError, r"^Expected object with 'content' attribute, got <class 'list'>"),
     ]
 )
-def test_str_output_parser_parse_failure(parser: StrOutputParser, invalid_input, expected_exception, match_message: str):
+def test_str_output_parser_parse_failure(parser: StrOutputParser, invalid_input: Any, expected_exception: Type[BaseException], match_message: str) -> None:
     """Test parsing failures with various invalid inputs."""
     with pytest.raises(expected_exception, match=match_message):
         parser.parse(invalid_input)
@@ -81,20 +80,20 @@ def test_str_output_parser_parse_failure(parser: StrOutputParser, invalid_input,
 # StrOutputParser.aparse tests (uses parse via asyncio.to_thread)
 
 @pytest.mark.asyncio
-async def test_str_output_parser_aparse_success(parser: StrOutputParser):
+async def test_str_output_parser_aparse_success(parser: StrOutputParser) -> None:
     """Test successful async parsing."""
     message = AIMessage(content='Async Hello')
     assert await parser.aparse(message) == 'Async Hello'
 
 @pytest.mark.asyncio
-async def test_str_output_parser_aparse_failure_type(parser: StrOutputParser):
+async def test_str_output_parser_aparse_failure_type(parser: StrOutputParser) -> None:
     """Test async parsing type error propagation."""
     invalid_input = NotAMessage(data='test')
     with pytest.raises(TypeError, match=r"^Expected object with 'content' attribute, got .*NotAMessage"):
         await parser.aparse(invalid_input)
 
 @pytest.mark.asyncio
-async def test_str_output_parser_aparse_failure_value(parser: StrOutputParser):
+async def test_str_output_parser_aparse_failure_value(parser: StrOutputParser) -> None:
     """Test async parsing value error propagation."""
     invalid_input = BadDuckMessage(content=123)
     with pytest.raises(ValueError, match=r"^Expected string content, got <class 'int'>"):
@@ -102,18 +101,18 @@ async def test_str_output_parser_aparse_failure_value(parser: StrOutputParser):
 
 # StrOutputParser.invoke tests (calls parse)
 
-def test_str_output_parser_invoke_success(parser: StrOutputParser):
+def test_str_output_parser_invoke_success(parser: StrOutputParser) -> None:
     """Test successful sync invocation."""
     message = AIMessage(content='Invoke Hello')
     assert parser.invoke(message) == 'Invoke Hello'
 
-def test_str_output_parser_invoke_failure_type(parser: StrOutputParser):
+def test_str_output_parser_invoke_failure_type(parser: StrOutputParser) -> None:
     """Test sync invocation type error propagation."""
     invalid_input = NotAMessage(data='test')
     with pytest.raises(TypeError, match=r"^Expected object with 'content' attribute, got .*NotAMessage"):
         parser.invoke(invalid_input)
 
-def test_str_output_parser_invoke_failure_value(parser: StrOutputParser):
+def test_str_output_parser_invoke_failure_value(parser: StrOutputParser) -> None:
     """Test sync invocation value error propagation."""
     invalid_input = BadDuckMessage(content=123)
     with pytest.raises(ValueError, match=r"^Expected string content, got <class 'int'>"):
@@ -122,20 +121,20 @@ def test_str_output_parser_invoke_failure_value(parser: StrOutputParser):
 # StrOutputParser.ainvoke tests (calls aparse)
 
 @pytest.mark.asyncio
-async def test_str_output_parser_ainvoke_success(parser: StrOutputParser):
+async def test_str_output_parser_ainvoke_success(parser: StrOutputParser) -> None:
     """Test successful async invocation."""
     message = AIMessage(content='AInvoke Hello')
     assert await parser.ainvoke(message) == 'AInvoke Hello'
 
 @pytest.mark.asyncio
-async def test_str_output_parser_ainvoke_failure_type(parser: StrOutputParser):
+async def test_str_output_parser_ainvoke_failure_type(parser: StrOutputParser) -> None:
     """Test async invocation type error propagation."""
     invalid_input = NotAMessage(data='test')
     with pytest.raises(TypeError, match=r"^Expected object with 'content' attribute, got .*NotAMessage"):
         await parser.ainvoke(invalid_input)
 
 @pytest.mark.asyncio
-async def test_str_output_parser_ainvoke_failure_value(parser: StrOutputParser):
+async def test_str_output_parser_ainvoke_failure_value(parser: StrOutputParser) -> None:
     """Test async invocation value error propagation."""
     invalid_input = BadDuckMessage(content=123)
     with pytest.raises(ValueError, match=r"^Expected string content, got <class 'int'>"):
@@ -173,7 +172,7 @@ async def test_str_output_parser_ainvoke_failure_value(parser: StrOutputParser):
         ('```json\n{\n  "multi": true,\n  "line": "yes"\n}\n```', {"multi": True, "line": "yes"}),
     ]
 )
-def test_json_output_parser_parse_success(json_parser: JsonOutputParser, raw_content: str, expected_parsed: Any):
+def test_json_output_parser_parse_success(json_parser: JsonOutputParser, raw_content: str, expected_parsed: Any) -> None:
     """Test successful JSON parsing with various formats."""
     message = AIMessage(content=raw_content)
     assert json_parser.parse(message) == expected_parsed
@@ -189,7 +188,7 @@ def test_json_output_parser_parse_success(json_parser: JsonOutputParser, raw_con
         (BadDuckMessage(content=123), ValueError, r"^Expected string content, got <class 'int'>"),
     ]
 )
-def test_json_output_parser_parse_failure_str_parser(json_parser: JsonOutputParser, invalid_input: Any, expected_exception: type[Exception], match_message: str):
+def test_json_output_parser_parse_failure_str_parser(json_parser: JsonOutputParser, invalid_input: Any, expected_exception: Type[BaseException], match_message: str) -> None:
     """Test that errors from the parent StrOutputParser are propagated."""
     with pytest.raises(expected_exception, match=match_message):
         json_parser.parse(invalid_input)
@@ -204,7 +203,7 @@ def test_json_output_parser_parse_failure_str_parser(json_parser: JsonOutputPars
         ('```json\n not json \n```', r"^Failed to parse extracted string as JSON: Expecting value"),
     ]
 )
-def test_json_output_parser_parse_failure_json_decode(json_parser: JsonOutputParser, bad_json_content: str, match_message: str):
+def test_json_output_parser_parse_failure_json_decode(json_parser: JsonOutputParser, bad_json_content: str, match_message: str) -> None:
     """Test that JSONDecodeError is caught and wrapped in ParseException."""
     message = AIMessage(content=bad_json_content)
     with pytest.raises(ParseException, match=match_message) as exc_info:
@@ -215,14 +214,14 @@ def test_json_output_parser_parse_failure_json_decode(json_parser: JsonOutputPar
 # --- Async Tests for JsonOutputParser --- #
 
 @pytest.mark.asyncio
-async def test_json_output_parser_aparse_success(json_parser: JsonOutputParser):
+async def test_json_output_parser_aparse_success(json_parser: JsonOutputParser) -> None:
     """Test successful async JSON parsing."""
     raw_content = '```json\n{"result": true}\n```'
     message = AIMessage(content=raw_content)
     assert await json_parser.aparse(message) == {"result": True}
 
 @pytest.mark.asyncio
-async def test_json_output_parser_aparse_failure_json_decode(json_parser: JsonOutputParser):
+async def test_json_output_parser_aparse_failure_json_decode(json_parser: JsonOutputParser) -> None:
     """Test async JSONDecodeError failure."""
     bad_json_content = '{"key": invalid}'
     message = AIMessage(content=bad_json_content)
@@ -232,25 +231,25 @@ async def test_json_output_parser_aparse_failure_json_decode(json_parser: JsonOu
 
 # --- Invoke/AInvoke Tests for JsonOutputParser --- #
 
-def test_json_output_parser_invoke_success(json_parser: JsonOutputParser):
+def test_json_output_parser_invoke_success(json_parser: JsonOutputParser) -> None:
     """Test successful sync invocation."""
     message = AIMessage(content='{"data": [1, 2]}')
     assert json_parser.invoke(message) == {"data": [1, 2]}
 
-def test_json_output_parser_invoke_failure_json_decode(json_parser: JsonOutputParser):
+def test_json_output_parser_invoke_failure_json_decode(json_parser: JsonOutputParser) -> None:
     """Test sync invocation JSONDecodeError failure."""
     message = AIMessage(content='not json')
     with pytest.raises(ParseException, match=r"^Failed to parse extracted string as JSON"):
         json_parser.invoke(message)
 
 @pytest.mark.asyncio
-async def test_json_output_parser_ainvoke_success(json_parser: JsonOutputParser):
+async def test_json_output_parser_ainvoke_success(json_parser: JsonOutputParser) -> None:
     """Test successful async invocation."""
     message = AIMessage(content=' ["a", "b"] ')
     assert await json_parser.ainvoke(message) == ["a", "b"]
 
 @pytest.mark.asyncio
-async def test_json_output_parser_ainvoke_failure_json_decode(json_parser: JsonOutputParser):
+async def test_json_output_parser_ainvoke_failure_json_decode(json_parser: JsonOutputParser) -> None:
     """Test async invocation JSONDecodeError failure."""
     message = AIMessage(content='{key: value}')
     with pytest.raises(ParseException, match=r"^Failed to parse extracted string as JSON"):
@@ -286,7 +285,7 @@ async def test_json_output_parser_ainvoke_failure_json_decode(json_parser: JsonO
         ('```\n  no_closing_no_lang: yes', {"no_closing_no_lang": True}),
     ]
 )
-def test_yaml_output_parser_parse_success(yaml_parser: YamlOutputParser, raw_content: str, expected_parsed: Any):
+def test_yaml_output_parser_parse_success(yaml_parser: YamlOutputParser, raw_content: str, expected_parsed: Any) -> None:
     """Test successful YAML parsing with various formats using regex extraction."""
     message = AIMessage(content=raw_content)
     assert yaml_parser.parse(message) == expected_parsed
@@ -301,7 +300,7 @@ def test_yaml_output_parser_parse_success(yaml_parser: YamlOutputParser, raw_con
         (None, TypeError, r"^Expected object with 'content' attribute"),
     ]
 )
-def test_yaml_output_parser_parse_failure_str_parser(yaml_parser: YamlOutputParser, invalid_input: Any, expected_exception: type[Exception], match_message: str):
+def test_yaml_output_parser_parse_failure_str_parser(yaml_parser: YamlOutputParser, invalid_input: Any, expected_exception: Type[BaseException], match_message: str) -> None:
     """Test that errors from the parent StrOutputParser are propagated for YAML."""
     with pytest.raises(expected_exception, match=match_message):
         yaml_parser.parse(invalid_input)
@@ -318,7 +317,7 @@ def test_yaml_output_parser_parse_failure_str_parser(yaml_parser: YamlOutputPars
         ('key: value\n  bad_indent: true', r"^Failed to parse extracted string as YAML:.*?mapping values are not allowed here"),
     ]
 )
-def test_yaml_output_parser_parse_failure_yaml_error(yaml_parser: YamlOutputParser, bad_yaml_content: str, match_message: str):
+def test_yaml_output_parser_parse_failure_yaml_error(yaml_parser: YamlOutputParser, bad_yaml_content: str, match_message: str) -> None:
     """Test that YAMLError is caught and wrapped in ParseException."""
     message = AIMessage(content=bad_yaml_content)
     with pytest.raises(ParseException, match=match_message) as exc_info:
@@ -328,14 +327,14 @@ def test_yaml_output_parser_parse_failure_yaml_error(yaml_parser: YamlOutputPars
 # --- Async Tests for YamlOutputParser --- #
 
 @pytest.mark.asyncio
-async def test_yaml_output_parser_aparse_success(yaml_parser: YamlOutputParser):
+async def test_yaml_output_parser_aparse_success(yaml_parser: YamlOutputParser) -> None:
     """Test successful async YAML parsing."""
     raw_content = '```yaml\nresult: true\n```'
     message = AIMessage(content=raw_content)
     assert await yaml_parser.aparse(message) == {"result": True}
 
 @pytest.mark.asyncio
-async def test_yaml_output_parser_aparse_failure_yaml_error(yaml_parser: YamlOutputParser):
+async def test_yaml_output_parser_aparse_failure_yaml_error(yaml_parser: YamlOutputParser) -> None:
     """Test async YAMLError failure."""
     bad_yaml_content = 'key: {invalid: yaml\n' # Unbalanced braces
     message = AIMessage(content=bad_yaml_content)
@@ -346,25 +345,25 @@ async def test_yaml_output_parser_aparse_failure_yaml_error(yaml_parser: YamlOut
 
 # --- Invoke/AInvoke Tests for YamlOutputParser --- #
 
-def test_yaml_output_parser_invoke_success(yaml_parser: YamlOutputParser):
+def test_yaml_output_parser_invoke_success(yaml_parser: YamlOutputParser) -> None:
     """Test successful sync YAML invocation."""
     message = AIMessage(content='- item1\n- item2')
     assert yaml_parser.invoke(message) == ["item1", "item2"]
 
-def test_yaml_output_parser_invoke_failure_yaml_error(yaml_parser: YamlOutputParser):
+def test_yaml_output_parser_invoke_failure_yaml_error(yaml_parser: YamlOutputParser) -> None:
     """Test sync invocation YAMLError failure."""
     message = AIMessage(content='key : bad : yaml')
     with pytest.raises(ParseException, match=r"^Failed to parse extracted string as YAML"):
         yaml_parser.invoke(message)
 
 @pytest.mark.asyncio
-async def test_yaml_output_parser_ainvoke_success(yaml_parser: YamlOutputParser):
+async def test_yaml_output_parser_ainvoke_success(yaml_parser: YamlOutputParser) -> None:
     """Test successful async YAML invocation."""
     message = AIMessage(content='field: value')
     assert await yaml_parser.ainvoke(message) == {"field": "value"}
 
 @pytest.mark.asyncio
-async def test_yaml_output_parser_ainvoke_failure_yaml_error(yaml_parser: YamlOutputParser):
+async def test_yaml_output_parser_ainvoke_failure_yaml_error(yaml_parser: YamlOutputParser) -> None:
     """Test async invocation YAMLError failure."""
     message = AIMessage(content='key: [unclosed')
     with pytest.raises(ParseException, match=r"^Failed to parse extracted string as YAML"):
