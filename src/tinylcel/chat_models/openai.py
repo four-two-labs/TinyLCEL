@@ -11,10 +11,11 @@ from openai import AsyncAzureOpenAI
 from openai._types import NotGiven
 
 from tinylcel.utils.auth import get_api_key
-from tinylcel.messages import AIMessage
-from tinylcel.messages import BaseMessage
-from tinylcel.messages import MessagesInput
+from tinylcel.messages.base import AIMessage
+from tinylcel.messages.base import BaseMessage
+from tinylcel.messages.base import MessagesInput
 from tinylcel.chat_models.base import BaseChatModel
+from tinylcel.messages.base import MessageContentBlock
 
 # Added TypeVar for from_client method
 T = TypeVar('T')
@@ -99,7 +100,7 @@ class ChatOpenAI(BaseChatModel):
         self._async_client = self._async_client or openai.AsyncOpenAI(**client_kwargs) # type: ignore
     
 
-    def _convert_message_to_dict(self, message: BaseMessage) -> dict[str, str]:
+    def _convert_message_to_dict(self, message: BaseMessage) -> dict[str, str | list[MessageContentBlock]]:
         """Convert a TinyLCEL message to the OpenAI API dictionary format.
 
         Maps internal roles (`human`, `ai`, `system`) to the roles expected

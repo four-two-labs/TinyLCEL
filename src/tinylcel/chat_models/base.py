@@ -3,7 +3,8 @@
 import abc
 from dataclasses import dataclass, field
 
-from tinylcel.messages import AIMessage, MessagesInput
+from tinylcel.messages import AIMessage
+from tinylcel.messages import MessagesInput
 from tinylcel.runnable import RunnableBase
 
 

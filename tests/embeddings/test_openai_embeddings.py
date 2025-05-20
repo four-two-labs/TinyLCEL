@@ -532,7 +532,7 @@ def test_azure_openai_embeddings_from_client(mock_azure_clients_for_embeddings, 
     mock_azure_clients_for_embeddings['sync_client'].copy.assert_called_once_with(timeout=30.0, max_retries=5)
     mock_azure_clients_for_embeddings['async_client'].copy.assert_called_once_with(timeout=30.0, max_retries=5)
 
-@pytest.mark.skip("AzureEmbeddings.from_client not supported")
+
 def test_azure_openai_embeddings_from_client_no_deployment_uses_model(mock_azure_clients_for_embeddings, monkeypatch):
     """Test from_client uses model if azure_deployment is None."""
     monkeypatch.setenv("AZURE_OPENAI_API_KEY", TEST_AZURE_API_KEY) # Ensure API key for __post_init__

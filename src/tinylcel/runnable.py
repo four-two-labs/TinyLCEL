@@ -155,7 +155,7 @@ class RunnableBase[Input, Output](Runnable[Input, Output], abc.ABC):
     def __or__[Intermediate, OtherOutput](  # Type parameters for the method
         self: Runnable[Input, Intermediate],
         other: Runnable[Intermediate, OtherOutput],
-    ) -> "Runnable[Input, OtherOutput]":  # Return the general protocol type
+    ) -> "RunnableBase[Input, OtherOutput]":  # Return the concrete RunnableBase type
         """Compose this runnable with another runnable using the | operator.
 
         This method allows chaining runnables like `runnable1 | runnable2`,
@@ -165,7 +165,7 @@ class RunnableBase[Input, Output](Runnable[Input, Output], abc.ABC):
             other: The runnable to compose with. Must implement the Runnable protocol.
 
         Returns:
-            A RunnableSequence representing the composition of self | other.
+            A RunnableSequence representing the composition of self | other, as a RunnableBase.
 
         Raises:
             TypeError: If 'other' is not a valid Runnable instance.
