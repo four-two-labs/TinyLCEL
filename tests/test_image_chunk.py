@@ -13,12 +13,14 @@ def test_image_chunk_from_pil_image(tmp_path):
     # Create a small red image
     img = Image.new('RGB', (2, 2), color=(255, 0, 0))
     chunk = ImageChunk(img)
-    assert isinstance(chunk, ImageChunk)
-    # Chunk is also a HumanMessageChunk
     assert isinstance(chunk, HumanMessageChunk)
     assert chunk.role == 'human'
     content = chunk.content
-    # Content should be a mapping with type and image_url
+
+    assert isinstance(chunk.content, list)
+    assert len(chunk.content) == 1
+    content = chunk.content[0]
+
     assert isinstance(content, dict)
     assert content.get('type') == 'image_url'
     image_url = content['image_url']
@@ -37,7 +39,7 @@ def test_image_chunk_from_path(tmp_path):
     img = Image.new('RGB', (1, 1), color=(0, 255, 0))
     img.save(img_path, format='PNG')
     chunk = ImageChunk(img_path)
-    content = chunk.content
+    content = chunk.content[0]
     url = content['image_url']['url']
     # Should detect correct mime for webp default
     assert url.startswith('data:image/webp;base64,')
@@ -52,7 +54,7 @@ def test_image_chunk_different_formats(tmp_path, fmt, prefix):
     img = Image.new('RGB', (1, 1), color=(0, 0, 255))
     img.save(img_path, format=fmt.upper())
     chunk = ImageChunk(img_path, wire_format=fmt)
-    content = chunk.content
+    content = chunk.content[0]
     url = content['image_url']['url']
     assert url.startswith(prefix) 
 

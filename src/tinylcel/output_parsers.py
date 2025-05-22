@@ -105,7 +105,7 @@ class StrOutputParser(BaseOutputParser[str]):
 
 
 @dataclass(frozen=True)
-class JsonOutputParser(StrOutputParser):
+class JsonOutputParser(StrOutputParser, RunnableBase[str, dict]):
     """
     Parses JSON output from an LLM call.
 

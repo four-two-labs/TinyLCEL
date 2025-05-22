@@ -36,10 +36,9 @@ class SystemMessage(BaseMessage):
     role: str = field(default="system", init=False)
 
 
-# Type alias for a list of messages, representing a conversation history
+
 type MessagesInput = list[BaseMessage]
 
-# Type for rich content blocks (text or structured dict)
 
 
 # Message chunk support (minimal)
