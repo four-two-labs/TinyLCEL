@@ -1,26 +1,35 @@
 """Output parsers for TinyLCEL."""
 
-import abc
 import re
+import abc
 import json
-import yaml
 from typing import Any
 from typing import Protocol
 from dataclasses import dataclass
 from typing import runtime_checkable
 
-from tinylcel.runnable import RunnableBase
+import yaml
 
+from tinylcel.runnable import RunnableBase
 
 
 @runtime_checkable
 class HasContent(Protocol):
+    """Protocol for objects that have a content attribute."""
+
     content: Any
 
 
-class ParseException(Exception):
+class ParseError(Exception):
     """Base exception for output parsing errors."""
-    def __init__(self, message: str, original_text: str | None = None):
+
+    def __init__(self, message: str, original_text: str | None = None) -> None:
+        """Initialize ParseError with message and optional original text.
+
+        Args:
+            message: Error message describing the parsing failure.
+            original_text: The original text that failed to parse, if available.
+        """
         super().__init__(message)
         self.original_text = original_text
 
@@ -48,8 +57,8 @@ class BaseOutputParser[OutputType](RunnableBase[Any, OutputType], abc.ABC):
         ...
 
     async def aparse(self, output: Any) -> OutputType:
-        """
-        Asynchronously parse the raw output of an LLM.
+        """Asynchronously parse the raw output of an LLM.
+
         Default implementation runs the sync `parse` method in a thread pool.
 
         Args:
@@ -62,17 +71,19 @@ class BaseOutputParser[OutputType](RunnableBase[Any, OutputType], abc.ABC):
 
     # Inherited invoke/ainvoke will call parse/aparse
     def invoke(self, input: Any) -> OutputType:
+        """Parse the input synchronously."""
         return self.parse(input)
 
     async def ainvoke(self, input: Any) -> OutputType:
+        """Parse the input asynchronously."""
         return await self.aparse(input)
 
 
 @dataclass(frozen=True)
 class StrOutputParser(BaseOutputParser[str]):
-    """
-    Parses the output of an LLM call that is expected to be a message
-    with string content (like AIMessage) into a simple string.
+    """Parses the output of an LLM call that is expected to be a message.
+
+    Converts message with string content (like AIMessage) into a simple string.
     """
 
     def parse(self, input: HasContent | str) -> str:
@@ -91,17 +102,17 @@ class StrOutputParser(BaseOutputParser[str]):
         """
         content: Any | None = None
         match input:
-            case HasContent(content=content): ...
-            case str() as content: ...            
+            case HasContent(content=content):
+                ...
+            case str() as content:
+                ...
             case _:
-                raise TypeError(
-                    f"Expected object with 'content' attribute, got {type(input)}"
-                )
-        
+                raise TypeError(f"Expected object with 'content' attribute, got {type(input)}")
+
         if isinstance(content, str):
             return content
 
-        raise ValueError(f"Expected string content, got {type(content)}")
+        raise ValueError(f'Expected string content, got {type(content)}')
 
 
 @dataclass(frozen=True)
@@ -114,17 +125,15 @@ class JsonOutputParser(StrOutputParser, RunnableBase[str, dict]):
     Expects the input to the parser to have a string 'content' attribute
     (like AIMessage).
     """
-    _json_regex: re.Pattern = re.compile(
-        r"^\s*(?:```(?:json)?\n*)?(.*?)(?:\n*```)?\s*$",
-        re.IGNORECASE | re.DOTALL
-    )
 
-    def parse(self, output: Any) -> Any:
+    _json_regex: re.Pattern = re.compile(r'^\s*(?:```(?:json)?\n*)?(.*?)(?:\n*```)?\s*$', re.IGNORECASE | re.DOTALL)
+
+    def parse(self, input: Any) -> Any:
         """
-        Parses the string output into a Python object via JSON.
+        Parses the string input into a Python object via JSON.
 
         Args:
-            output: An object assumed to have a 'content' attribute (e.g., AIMessage).
+            input: An object assumed to have a 'content' attribute (e.g., AIMessage).
 
         Returns:
             The parsed Python object (dict, list, str, int, float, bool, None).
@@ -134,13 +143,10 @@ class JsonOutputParser(StrOutputParser, RunnableBase[str, dict]):
                 if the regex fails to find a suitable JSON block, or if the
                 extracted block is invalid JSON.
         """
-        text = super().parse(output)
+        text = super().parse(input)
         match = self._json_regex.search(text)
         if match is None:
-            raise ParseException(
-                f'Could not extract JSON block from received text: {text}',
-                original_text=text
-            )
+            raise ParseError(f'Could not extract JSON block from received text: {text}', original_text=text)
 
         json_string = match.group(1).strip()
         if not json_string:
@@ -149,12 +155,10 @@ class JsonOutputParser(StrOutputParser, RunnableBase[str, dict]):
         try:
             return json.loads(json_string)
         except json.JSONDecodeError as e:
-            raise ParseException(
-                f'Failed to parse extracted string as JSON: {e}. '
-                f'String was: {json_string!r}',
-                original_text=text
+            raise ParseError(
+                f'Failed to parse extracted string as JSON: {e}. String was: {json_string!r}', original_text=text
             ) from e
-        
+
 
 @dataclass(frozen=True)
 class YamlOutputParser(StrOutputParser):
@@ -167,19 +171,20 @@ class YamlOutputParser(StrOutputParser):
     (like AIMessage).
     Uses yaml.safe_load to prevent arbitrary code execution.
     """
+
     # Regex to extract content within optional yaml/markdown fences
     _yaml_regex: re.Pattern = re.compile(
         # Same regex as JSON, language tag is optional and case-insensitive
-        r"^\s*(?:```(?:yaml)?\n*)?(.*?)(?:\n*```)?\s*$",
-        re.IGNORECASE | re.DOTALL
+        r'^\s*(?:```(?:yaml)?\n*)?(.*?)(?:\n*```)?\s*$',
+        re.IGNORECASE | re.DOTALL,
     )
 
-    def parse(self, output: Any) -> Any:
+    def parse(self, input: Any) -> Any:
         """
-        Parses the string output as YAML after extracting via regex.
+        Parses the string input as YAML after extracting via regex.
 
         Args:
-            output: An object assumed to have a 'content' attribute (e.g., AIMessage).
+            input: An object assumed to have a 'content' attribute (e.g., AIMessage).
 
         Returns:
             The parsed Python object from YAML, or None if the extracted content is empty.
@@ -189,13 +194,10 @@ class YamlOutputParser(StrOutputParser):
                 fails to find a suitable YAML block, or if the extracted block
                 is invalid YAML.
         """
-        text = super().parse(output)
+        text = super().parse(input)
         match = self._yaml_regex.search(text)
         if match is None:
-            raise ParseException(
-                f'Could not extract YAML block from received text: {text}',
-                original_text=text
-            )
+            raise ParseError(f'Could not extract YAML block from received text: {text}', original_text=text)
 
         yaml_string = match.group(1).strip()
         if not yaml_string:
@@ -204,10 +206,6 @@ class YamlOutputParser(StrOutputParser):
         try:
             return yaml.safe_load(yaml_string)
         except yaml.YAMLError as e:
-            raise ParseException(
-                f'Failed to parse extracted string as YAML: {e}. '
-                f'String was: {yaml_string!r}',
-                original_text=text
+            raise ParseError(
+                f'Failed to parse extracted string as YAML: {e}. String was: {yaml_string!r}', original_text=text
             ) from e
-
-

@@ -6,8 +6,9 @@ from typing import List
 import openai
 from dotenv import load_dotenv
 
+from tinylcel.messages import BaseMessage
+from tinylcel.messages import HumanMessage
 from tinylcel.chat_models.openai import from_client
-from tinylcel.messages import HumanMessage, BaseMessage
 
 
 async def main() -> None:

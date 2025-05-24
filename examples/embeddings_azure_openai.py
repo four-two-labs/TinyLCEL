@@ -2,9 +2,11 @@
 
 import os
 import asyncio
+
 from dotenv import load_dotenv
 
 from tinylcel.embeddings.openai import AzureOpenAIEmbeddings
+
 
 async def main():
     load_dotenv()

@@ -5,11 +5,12 @@ import asyncio
 from typing import List
 
 import openai
-import httpx # httpx.URL is used by openai models for base_url
 from dotenv import load_dotenv
+import httpx  # httpx.URL is used by openai models for base_url
 
+from tinylcel.messages import BaseMessage
+from tinylcel.messages import HumanMessage
 from tinylcel.chat_models.openai import from_azure_client
-from tinylcel.messages import HumanMessage, BaseMessage
 
 
 async def main() -> None:

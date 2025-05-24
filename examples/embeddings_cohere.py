@@ -2,9 +2,11 @@
 
 import os
 import asyncio
+
 from dotenv import load_dotenv
 
 from tinylcel.embeddings.cohere import CohereEmbeddings
+
 
 async def main():
     # Load environment variables from .env file (optional)

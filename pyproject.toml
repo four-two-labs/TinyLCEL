@@ -1,6 +1,6 @@
 [project]
 name = 'tinylcel'
-version = '0.1.7'
+version = '0.1.8'
 description = 'A tiny implementation of LangChain Expression Language (LCEL)'
 authors = [
     { name = 'Ali Mosavian', email = "ali@42labs.ai" },
@@ -8,7 +8,7 @@ authors = [
 readme = 'README.md'
 requires-python = '>=3.12'
 
-dependencies = [
+dependencies = [    
     'pyyaml>=6.0.2,<7.0.0',
     'types-pyyaml>=6.0.12,<7.0.0',
 ]
@@ -16,12 +16,14 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    'isort>=6.0.0,<7.0.0',
     'mypy-extensions>=1.1.0,<2.0.0',
     'mypy>=1.15.0,<2.0.0',
     'pytest-asyncio>=0.26.0,<0.27.0',
     'pytest-cov>=6.1.1,<7.0.0',
     'pytest>=8.3.5,<9.0.0',
     'python-dotenv>=1.1.0,<2.0.0',
+    'radon>=6.0.1,<7.0.0',
     'ruff>=0.11.8,<0.12.0'
 ]
 
@@ -51,4 +53,168 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["tinylcel*"] 
+include = ["tinylcel*"]
+
+[tool.setuptools.package-data]
+tinylcel = ["py.typed"]
+
+[tool.ruff]
+line-length = 119
+indent-width = 4
+src = ["src"]
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+line-ending = "auto"
+
+# Based on codebase analysis - improve docstring code formatting
+docstring-code-format = true
+
+# Preview mode enables additional formatting improvements
+preview = true
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # Pyflakes
+    "Q",    # flake8-quotes
+    "B",    # flake8-bugbear
+    "A",    # flake8-builtins
+    "C4",   # flake8-comprehensions
+    "T10",  # flake8-debugger
+    "EM",   # flake8-errmsg
+    "FA",   # flake8-future-annotations
+    "ISC",  # flake8-implicit-str-concat
+    "ICN",  # flake8-import-conventions
+    "G",    # flake8-logging-format
+    "INP",  # flake8-no-pep420
+    "PIE",  # flake8-pie
+    "T20",  # flake8-print
+    "PT",   # flake8-pytest-style
+    "RSE",  # flake8-raise
+    "RET",  # flake8-return
+    "SIM",  # flake8-simplify
+    "TC",   # flake8-type-checking
+    "ARG",  # flake8-unused-arguments
+    "PTH",  # flake8-use-pathlib
+    "FLY",  # flynt
+    "PERF", # Perflint
+    "FURB", # refurb
+    "RUF",  # Ruff-specific rules
+    "UP",   # pyupgrade
+    "ANN",  # flake8-annotations
+    "S",    # flake8-bandit
+    "BLE",  # flake8-blind-except
+    # "COM",  # flake8-commas (conflicts with formatter)
+    "DTZ",  # flake8-datetimez
+    "EXE",  # flake8-executable
+    "SLF",  # flake8-self
+    "TID",  # flake8-tidy-imports
+    "PGH",  # pygrep-hooks
+    "PL",   # Pylint
+    "TRY",  # tryceratops
+    "FBT",  # flake8-boolean-trap
+    "ERA",  # eradicate
+    "N",    # pep8-naming
+    "D",    # pydocstyle
+    "C90",  # mccabe
+]
+
+# Ignore specific rules that are too strict for this codebase
+ignore = [
+    "S101",    # assert usage (acceptable in tests)
+    "D100",    # module docstring (not always needed)
+    "D104",    # package docstring (not always needed) 
+    "D105",    # magic method docstring (often obvious)
+    "D212",    # multi-line docstring summary should start at first line (allow current style)
+    "PLR2004", # magic values (acceptable in tests/examples)
+    "FBT001",  # boolean positional args (acceptable for pytest parametrize)
+    "FBT002",  # boolean default args (sometimes needed)
+    "ANN401",  # Any usage (sometimes necessary for generic code)
+    "TRY003",  # long exception messages (we want descriptive errors)
+    "EM101",   # string literal in exception (acceptable with good messages)
+    "EM102",   # f-string in exception (acceptable for context)
+    "UP035",   # collections.abc imports over typing (keep using typing)
+    "ISC003",  # Explicit string concatenation
+    "A002",    # builtin shadowing (needed for Runnable interface consistency)
+    "PGH003",  # blanket type ignore (legitimate in external library integration)
+]
+
+# Per-file ignores for more flexible rules
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = [
+    "S101",    # assert usage in tests is expected
+    "PLR2004", # magic values acceptable in tests
+    "FBT001",  # boolean args acceptable in pytest parametrize
+    "FBT002",  # boolean defaults acceptable in test helpers
+    "ANN401",  # Any usage acceptable in test mocks
+    "D103",    # test function docstrings often unnecessary
+    "SLF001",  # private member access acceptable in tests
+]
+"examples/*" = [
+    "T20",     # print statements acceptable in examples
+    "D103",    # function docstrings not always needed in examples
+    "PLR2004", # magic values acceptable in examples
+]
+"src/tinylcel/chat_models/openai.py" = [
+    "PLR0913", # many arguments needed for OpenAI client factory functions
+]
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "single"
+multiline-quotes = "double"
+docstring-quotes = "double"
+
+[tool.ruff.lint.flake8-type-checking]
+strict = true
+
+[tool.ruff.lint.flake8-annotations]
+mypy-init-return = true
+suppress-dummy-args = true
+
+[tool.ruff.lint.pylint]
+max-args = 6
+max-returns = 6
+max-branches = 15
+max-statements = 60
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-pytest-style]
+fixture-parentheses = false
+mark-parentheses = false
+parametrize-names-type = "tuple"
+parametrize-values-type = "list"
+
+[tool.ruff.lint.mccabe]
+max-complexity = 12
+
+[tool.ruff.lint.isort]
+force-single-line = true
+order-by-type = false
+length-sort = true
+force-sort-within-sections = true
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+known-first-party = ["tinylcel"]
+combine-as-imports = false
+force-to-top = []
+no-lines-before = ["local-folder"]
+from-first = false
+
+[tool.isort]
+profile = "black"
+known_first_party = ["tinylcel"]
+src_paths = ["src"]
+force_single_line = true
+length_sort = true
+force_sort_within_sections = true
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+line_length = 119 
+
+[dependency-groups]
+dev = [
+    "radon>=6.0.1",
+]

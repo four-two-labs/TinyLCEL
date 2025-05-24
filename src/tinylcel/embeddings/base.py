@@ -31,7 +31,6 @@ class BaseEmbeddings(ABC):
             The order of embeddings in the output list corresponds to the
             order of texts in the input list.
         """
-        pass
 
     @abstractmethod
     def embed_query(self, text: str) -> list[float]:
@@ -44,14 +43,13 @@ class BaseEmbeddings(ABC):
         Returns:
             A list of floats representing the embedding for the query.
         """
-        pass
 
     async def aembed_documents(self, texts: list[str]) -> list[list[float]]:
         """
         Asynchronously generate embeddings for a list of documents.
 
         This default implementation runs the synchronous `embed_documents`
-        method in a separate thread. Override this method for native 
+        method in a separate thread. Override this method for native
         async performance.
 
         Args:
@@ -69,7 +67,7 @@ class BaseEmbeddings(ABC):
         Asynchronously generate an embedding for a single query text.
 
         This default implementation runs the synchronous `embed_query`
-        method in a separate thread. Override this method for native 
+        method in a separate thread. Override this method for native
         async performance.
 
         Args:

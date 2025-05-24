@@ -2,7 +2,7 @@ import sys
 import importlib
 
 import pytest
-from PIL import Image
+from PIL import Image  # type: ignore[import-not-found]
 
 from tinylcel.messages.chunks import HumanMessageChunk
 
@@ -44,19 +44,24 @@ def test_image_chunk_from_path(tmp_path):
     # Should detect correct mime for webp default
     assert url.startswith('data:image/webp;base64,')
 
-@pytest.mark.parametrize('fmt, prefix', [
-    ('jpeg', 'data:image/jpeg;base64,'),
-    ('png', 'data:image/png;base64,'),
-])
+
+@pytest.mark.parametrize(
+    'fmt, prefix',
+    [
+        ('jpeg', 'data:image/jpeg;base64,'),
+        ('png', 'data:image/png;base64,'),
+    ],
+)
 def test_image_chunk_different_formats(tmp_path, fmt, prefix):
     from tinylcel.messages.image_chunk import ImageChunk
+
     img_path = tmp_path / f'test.{fmt}'
     img = Image.new('RGB', (1, 1), color=(0, 0, 255))
     img.save(img_path, format=fmt.upper())
     chunk = ImageChunk(img_path, wire_format=fmt)
     content = chunk.content[0]
     url = content['image_url']['url']
-    assert url.startswith(prefix) 
+    assert url.startswith(prefix)
 
 
 @pytest.mark.parametrize('missing_module', ['PIL', 'magic'])
@@ -71,8 +76,8 @@ def test_missing_pillow_dependency(missing_module, monkeypatch):
         del sys.modules[MODULE]
     with pytest.raises(ImportError) as excinfo:
         importlib.import_module(MODULE)
-    
+
     msg = str(excinfo.value)
     assert 'please install' in msg.lower()
     assert 'python-magic' in msg
-    assert 'pillow' in msg 
+    assert 'pillow' in msg

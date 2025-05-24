@@ -1,14 +1,15 @@
 """Implementation of a chat model using the OpenAI API."""
 
+from typing import Any
+from typing import TypeVar
 from dataclasses import field
 from dataclasses import dataclass
-from typing import Any, TypeVar
 
 import openai
 from openai import NOT_GIVEN
 from openai import AzureOpenAI
-from openai import AsyncAzureOpenAI
 from openai._types import NotGiven
+from openai import AsyncAzureOpenAI
 
 from tinylcel.utils.auth import get_api_key
 from tinylcel.messages.base import AIMessage
@@ -19,6 +20,7 @@ from tinylcel.messages.base import MessageContentBlock
 
 # Added TypeVar for from_client method
 T = TypeVar('T')
+
 
 @dataclass
 class ChatOpenAI(BaseChatModel):
@@ -54,27 +56,28 @@ class ChatOpenAI(BaseChatModel):
         >>> from tinylcel.chat_models.openai import ChatOpenAI
         >>> from tinylcel.messages import HumanMessage
         >>> # Assumes OPENAI_API_KEY environment variable is set
-        >>> model = ChatOpenAI(model="gpt-4o-mini")
-        >>> response = model.invoke([HumanMessage(content="Hello!")])
+        >>> model = ChatOpenAI(model='gpt-4o-mini')
+        >>> response = model.invoke([HumanMessage(content='Hello!')])
         >>> print(response.content)
 
         >>> # Chain with a parser
         >>> from tinylcel.output_parsers import StrOutputParser
         >>> chain = model | StrOutputParser()
-        >>> result = chain.invoke([HumanMessage(content="Tell me a joke.")])
+        >>> result = chain.invoke([HumanMessage(content='Tell me a joke.')])
         >>> print(result)
     """
+
     model: str = 'gpt-3.5-turbo'
     api_key: str | None = field(default=None, repr=False)
     base_url: str | None = field(default=None, repr=True)
     temperature: float | NotGiven = field(default=NOT_GIVEN, repr=True)
     max_tokens: int | NotGiven = field(default=NOT_GIVEN, repr=True)
-    max_completion_tokens: int | NotGiven = field(default=NOT_GIVEN, repr=True)    
+    max_completion_tokens: int | NotGiven = field(default=NOT_GIVEN, repr=True)
     max_retries: int = field(default=openai.DEFAULT_MAX_RETRIES, repr=True)
     timeout: int | NotGiven = field(default=NOT_GIVEN, repr=True)
 
-    _client: openai.OpenAI = field(init=True, repr=False, default=None) # type: ignore
-    _async_client: openai.AsyncOpenAI = field(init=True, repr=False, default=None) # type: ignore
+    _client: openai.OpenAI = field(init=True, repr=False, default=None)  # type: ignore[assignment]
+    _async_client: openai.AsyncOpenAI = field(init=True, repr=False, default=None)  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
         """Initializes the synchronous and asynchronous OpenAI clients.
@@ -84,21 +87,18 @@ class ChatOpenAI(BaseChatModel):
         Raises:
             ValueError: If the OpenAI API key cannot be resolved.
         """
-        resolved_api_key = get_api_key(
-            self.api_key, 'OPENAI_API_KEY', 'OpenAI'
-        )
-        
+        resolved_api_key = get_api_key(self.api_key, 'OPENAI_API_KEY', 'OpenAI')
+
         client_kwargs: dict[str, Any] = {
             'api_key': resolved_api_key,
             'max_retries': self.max_retries,
-            'timeout': self.timeout
+            'timeout': self.timeout,
         }
         if self.base_url:
             client_kwargs['base_url'] = self.base_url
 
-        self._client = self._client or openai.OpenAI(**client_kwargs) # type: ignore
-        self._async_client = self._async_client or openai.AsyncOpenAI(**client_kwargs) # type: ignore
-    
+        self._client = self._client or openai.OpenAI(**client_kwargs)  # type: ignore[assignment]
+        self._async_client = self._async_client or openai.AsyncOpenAI(**client_kwargs)  # type: ignore[assignment]
 
     def _convert_message_to_dict(self, message: BaseMessage) -> dict[str, str | list[MessageContentBlock]]:
         """Convert a TinyLCEL message to the OpenAI API dictionary format.
@@ -121,7 +121,7 @@ class ChatOpenAI(BaseChatModel):
                 role = 'system'
             case _:
                 # Or raise an error for unsupported roles?
-                role = message.role # Pass through unknown roles for now
+                role = message.role  # Pass through unknown roles for now
 
         return {'role': role, 'content': message.content}
 
@@ -154,7 +154,7 @@ class ChatOpenAI(BaseChatModel):
         choice = response.choices[0]
         if choice.message.content is None:
             raise ValueError('OpenAI response content is None')
-        
+
         return AIMessage(content=choice.message.content)
 
     async def _agenerate(self, messages: MessagesInput) -> AIMessage:
@@ -187,7 +187,7 @@ class ChatOpenAI(BaseChatModel):
         choice = response.choices[0]
         if choice.message.content is None:
             raise ValueError('OpenAI response content is None')
-        
+
         return AIMessage(content=choice.message.content)
 
 
@@ -226,21 +226,21 @@ class AzureChatOpenAI(ChatOpenAI):
         >>> # AZURE_OPENAI_DEPLOYMENT_NAME and AZURE_OPENAI_API_VERSION
         >>> # environment variables are set, or values are passed directly.
         >>> model = AzureChatOpenAI(
-        ...     azure_endpoint="YOUR_AZURE_ENDPOINT",
-        ...     api_version="YOUR_API_VERSION",
-        ...     azure_deployment="your-deployment-name",
-        ...     model="your-deployment-name" # Often same as azure_deployment
+        ...     azure_endpoint='YOUR_AZURE_ENDPOINT',
+        ...     api_version='YOUR_API_VERSION',
+        ...     azure_deployment='your-deployment-name',
+        ...     model='your-deployment-name',  # Often same as azure_deployment
         ... )
-        >>> response = model.invoke([HumanMessage(content="Hello Azure OpenAI!")])
+        >>> response = model.invoke([HumanMessage(content='Hello Azure OpenAI!')])
         >>> print(response.content)
     """
+
     azure_endpoint: str = field(default='', repr=True)
     api_version: str | None = field(default=None, repr=True)
     azure_deployment: str | None = field(default=None, repr=True)
 
-    _client: AzureOpenAI = field(init=True, repr=False, default=None) # type: ignore
-    _async_client: AsyncAzureOpenAI = field(init=True, repr=False, default=None) # type: ignore
-    
+    _client: AzureOpenAI = field(init=True, repr=False, default=None)  # type: ignore
+    _async_client: AsyncAzureOpenAI = field(init=True, repr=False, default=None)  # type: ignore
 
     def __post_init__(self) -> None:
         """Initializes the Azure OpenAI clients."""
@@ -252,9 +252,9 @@ class AzureChatOpenAI(ChatOpenAI):
             'max_retries': self.max_retries,
             'timeout': self.timeout,
         }
-        self._client = self._client or AzureOpenAI(**client_kwargs_azure) # type: ignore
-        self._async_client = self._async_client or AsyncAzureOpenAI(**client_kwargs_azure) # type: ignore
-        self.model = self.model or self.azure_deployment # type: ignore
+        self._client = self._client or AzureOpenAI(**client_kwargs_azure)  # type: ignore
+        self._async_client = self._async_client or AsyncAzureOpenAI(**client_kwargs_azure)  # type: ignore
+        self.model = self.model or self.azure_deployment  # type: ignore
 
 
 def from_client(
@@ -265,10 +265,10 @@ def from_client(
     max_tokens: int | NotGiven = NOT_GIVEN,
     max_completion_tokens: int | NotGiven = NOT_GIVEN,
     max_retries: int = openai.DEFAULT_MAX_RETRIES,
-    timeout: int | NotGiven = NOT_GIVEN
+    timeout: int | NotGiven = NOT_GIVEN,
 ) -> ChatOpenAI:
     """Create a ChatOpenAI instance from pre-configured clients."""
-    instance = ChatOpenAI(
+    return ChatOpenAI(
         model=model,
         api_key='not_used_with_from_client',
         base_url=None,
@@ -280,8 +280,6 @@ def from_client(
         _client=client.copy(timeout=timeout, max_retries=max_retries),
         _async_client=async_client.copy(timeout=timeout, max_retries=max_retries),
     )
-
-    return instance
 
 
 def from_azure_client(
@@ -295,8 +293,7 @@ def from_azure_client(
     timeout: int | NotGiven = NOT_GIVEN,
 ) -> AzureChatOpenAI:
     """Create an AzureChatOpenAI instance from pre-configured Azure clients."""
-
-    instance = AzureChatOpenAI(
+    return AzureChatOpenAI(
         model=model,
         temperature=temperature,
         max_tokens=max_tokens,
@@ -310,6 +307,3 @@ def from_azure_client(
         _client=client.copy(timeout=timeout, max_retries=max_retries),
         _async_client=async_client.copy(timeout=timeout, max_retries=max_retries),
     )
-
-    return instance
-

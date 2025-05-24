@@ -5,26 +5,24 @@ for sequences and lambda functions, enabling chaining of operations.
 """
 
 import abc
-import inspect
 import asyncio
+import inspect
 from typing import Any
-from typing import Protocol
 from typing import TypeVar
 from typing import Callable
+from typing import Protocol
 from typing import Awaitable
 from dataclasses import dataclass
 from typing import runtime_checkable
 
 from tinylcel.itools import batch
 
-Input = TypeVar("Input")
-Output = TypeVar("Output")
-Intermediate = TypeVar("Intermediate")
-OtherOutput = TypeVar("OtherOutput")
+Input = TypeVar('Input')
+Output = TypeVar('Output')
+Intermediate = TypeVar('Intermediate')
+OtherOutput = TypeVar('OtherOutput')
 
-type WrappableFunc[Input, Output] = (
-    Callable[[Input], Output] | Callable[[Input], Awaitable[Output]]
-)
+type WrappableFunc[Input, Output] = Callable[[Input], Output] | Callable[[Input], Awaitable[Output]]
 
 
 @runtime_checkable
@@ -76,7 +74,8 @@ class Runnable[Input, Output](Protocol):
 
         Args:
             inputs: A list of inputs to the runnable.
-            **kwargs: Additional keyword arguments.
+            return_exceptions: If True, return exceptions instead of raising them.
+            max_concurrency: Maximum number of concurrent invocations (may be ignored by sync implementations).
 
         Returns:
             A list containing the results for each input.
@@ -155,7 +154,7 @@ class RunnableBase[Input, Output](Runnable[Input, Output], abc.ABC):
     def __or__[Intermediate, OtherOutput](  # Type parameters for the method
         self: Runnable[Input, Intermediate],
         other: Runnable[Intermediate, OtherOutput],
-    ) -> "RunnableBase[Input, OtherOutput]":  # Return the concrete RunnableBase type
+    ) -> 'RunnableBase[Input, OtherOutput]':  # Return the concrete RunnableBase type
         """Compose this runnable with another runnable using the | operator.
 
         This method allows chaining runnables like `runnable1 | runnable2`,
@@ -172,9 +171,7 @@ class RunnableBase[Input, Output](Runnable[Input, Output], abc.ABC):
 
         """
         if not isinstance(other, Runnable):
-            raise TypeError(
-                f"Expected second argument to be Runnable, got {type(other)}"
-            )
+            raise TypeError(f'Expected second argument to be Runnable, got {type(other)}')
 
         return RunnableSequence(first=self, second=other)
 
@@ -183,7 +180,7 @@ class RunnableBase[Input, Output](Runnable[Input, Output], abc.ABC):
         self,
         inputs: list[Input],
         return_exceptions: bool = False,
-        max_concurrency: int | None = None,
+        max_concurrency: int | None = None,  # noqa: ARG002
     ) -> list[Output | BaseException]:
         """Default synchronous batch processing by iterating invokes.
 
@@ -191,21 +188,24 @@ class RunnableBase[Input, Output](Runnable[Input, Output], abc.ABC):
 
         Args:
             inputs: A list of inputs.
+            return_exceptions: If True, return exceptions instead of raising them.
+            max_concurrency: Ignored in synchronous implementation (kept for interface compatibility).
 
         Returns:
             A list of outputs.
 
         """
+
         def _invoke(input_item: Input) -> Output | BaseException:
             try:
                 return self.invoke(input_item)
 
             except BaseException as e:
                 if not return_exceptions:
-                    raise e
+                    raise
                 return e
 
-        return [_invoke(input) for input in inputs]
+        return [_invoke(item) for item in inputs]
 
     # Default abatch implementation: gather ainvokes
     async def abatch(
@@ -230,14 +230,13 @@ class RunnableBase[Input, Output](Runnable[Input, Output], abc.ABC):
 
         """
         if max_concurrency is not None and max_concurrency < 1:
-            raise ValueError("max_concurrency must be None or a positive integer")
+            raise ValueError('max_concurrency must be None or a positive integer')
 
         return [
             result
             for current_batch in batch(inputs, max_concurrency)
             for result in await asyncio.gather(
-                *[self.ainvoke(input_item) for input_item in current_batch],
-                return_exceptions=return_exceptions
+                *[self.ainvoke(input_item) for input_item in current_batch], return_exceptions=return_exceptions
             )
         ]
 
@@ -301,6 +300,7 @@ class RunnableSequence[Input, Output](RunnableBase[Input, Output]):
     # def astream(self, input: Input) -> AsyncIterable[Output]:
     #     ...
 
+
 @dataclass(frozen=True)
 class RunnableLambda[Input, Output](RunnableBase[Input, Output]):
     """Wraps a Python function or coroutine function to make it a Runnable.
@@ -334,11 +334,8 @@ class RunnableLambda[Input, Output](RunnableBase[Input, Output]):
 
         """
         if self._is_async:
-            func_name = getattr(self._func, "__name__", repr(self._func))
-            raise TypeError(
-                f"Cannot synchronously `invoke` coroutine function {func_name}. "
-                "Use `ainvoke` instead."
-            )
+            func_name = getattr(self._func, '__name__', repr(self._func))
+            raise TypeError(f'Cannot synchronously `invoke` coroutine function {func_name}. Use `ainvoke` instead.')
         return self._func(input)  # type: ignore
 
     async def ainvoke(self, input: Input) -> Output:

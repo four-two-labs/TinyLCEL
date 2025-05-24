@@ -1,14 +1,14 @@
 """Implementation of embedding models using the Cohere API."""
 
-from dataclasses import dataclass
-from dataclasses import field
 from typing import Literal
+from dataclasses import field
+from dataclasses import dataclass
 
-import cohere
-from cohere.client import OMIT
+import cohere  # type: ignore[import-not-found]
+from cohere.client import OMIT  # type: ignore[import-not-found]
 
-from tinylcel.embeddings.base import BaseEmbeddings
 from tinylcel.utils.auth import get_api_key
+from tinylcel.embeddings.base import BaseEmbeddings
 
 
 @dataclass
@@ -41,6 +41,7 @@ class CohereEmbeddings(BaseEmbeddings):
     See Also:
         Cohere API documentation: https://docs.cohere.com/reference/embed
     """
+
     model: str = 'embed-english-v3.0'
     base_url: str | None = field(default=None, repr=True)
     api_key: str | None = field(default=None, repr=False)
@@ -50,26 +51,24 @@ class CohereEmbeddings(BaseEmbeddings):
     _client: cohere.ClientV2 = field(init=False, repr=False)
     _async_client: cohere.AsyncClientV2 = field(init=False, repr=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Initializes the synchronous and asynchronous Cohere clients.
-        
+
         Retrieves the API key and sets up the Cohere V2 clients. If a
         `base_url` is provided, it's used for client initialization.
 
         Raises:
             ValueError: If the Cohere API key cannot be resolved.
         """
-        resolved_api_key = get_api_key(
-            self.api_key, 'COHERE_API_KEY', 'Cohere'
-        )
-        client_kwargs = {"api_key": resolved_api_key}
-        async_client_kwargs = {"api_key": resolved_api_key}
+        resolved_api_key = get_api_key(self.api_key, 'COHERE_API_KEY', 'Cohere')
+        client_kwargs = {'api_key': resolved_api_key}
+        async_client_kwargs = {'api_key': resolved_api_key}
         if self.base_url:
-            client_kwargs["base_url"] = self.base_url
-            async_client_kwargs["base_url"] = self.base_url
-        
-        self._client = cohere.ClientV2(**client_kwargs)
-        self._async_client = cohere.AsyncClientV2(**async_client_kwargs)
+            client_kwargs['base_url'] = self.base_url
+            async_client_kwargs['base_url'] = self.base_url
+
+        self._client = cohere.ClientV2(**client_kwargs)  # type: ignore[arg-type]
+        self._async_client = cohere.AsyncClientV2(**async_client_kwargs)  # type: ignore[arg-type]
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
         """Generate embeddings for a list of document texts.
@@ -79,7 +78,7 @@ class CohereEmbeddings(BaseEmbeddings):
 
         Returns:
             A list of embeddings, one for each input document.
-        
+
         Raises:
             cohere.CohereError: If the Cohere API call fails.
         """
@@ -89,7 +88,7 @@ class CohereEmbeddings(BaseEmbeddings):
             input_type='search_document',
             truncate=self.truncate,
             output_dimension=self.dimensions,
-            embedding_types=['float']
+            embedding_types=['float'],
         )
         return response.embeddings.float  # type: ignore
 
@@ -111,7 +110,7 @@ class CohereEmbeddings(BaseEmbeddings):
             input_type='search_query',
             truncate=self.truncate,
             output_dimension=self.dimensions,
-            embedding_types=['float']
+            embedding_types=['float'],
         )
         return response.embeddings.float[0]  # type: ignore
 
@@ -133,13 +132,13 @@ class CohereEmbeddings(BaseEmbeddings):
             input_type='search_document',
             embedding_types=['float'],
             output_dimension=self.dimensions,
-            truncate=self.truncate
+            truncate=self.truncate,
         )
         return response.embeddings.float  # type: ignore
 
     async def aembed_query(self, text: str) -> list[float]:
         """Asynchronously generate an embedding for a single query text.
-        
+
         Args:
             text: The query string to embed.
 
@@ -155,6 +154,6 @@ class CohereEmbeddings(BaseEmbeddings):
             input_type='search_query',
             embedding_types=['float'],
             output_dimension=self.dimensions,
-            truncate=self.truncate
+            truncate=self.truncate,
         )
         return response.embeddings.float[0]  # type: ignore

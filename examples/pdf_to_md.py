@@ -8,17 +8,17 @@ import argparse
 from pathlib import Path
 from typing import Union
 
+from dotenv import load_dotenv
 import pdf2image  # type: ignore
 from PIL import Image  # type: ignore
-from dotenv import load_dotenv
 
 from tinylcel.runnable import Runnable
 from tinylcel.messages import SystemMessage
 from tinylcel.runnable import RunnableLambda
 from tinylcel.messages.chunks import TextChunk
+from tinylcel.chat_models.openai import ChatOpenAI
 from tinylcel.output_parsers import StrOutputParser
 from tinylcel.messages.image_chunk import ImageChunk
-from tinylcel.chat_models.openai import ChatOpenAI
 from tinylcel.chat_models.openai import BaseChatModel
 
 

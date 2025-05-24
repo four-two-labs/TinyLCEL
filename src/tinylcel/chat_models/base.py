@@ -1,11 +1,12 @@
 """Base classes for chat models and messages in TinyLCEL."""
 
 import abc
-from dataclasses import dataclass, field
+from dataclasses import field
+from dataclasses import dataclass
 
 from tinylcel.messages import AIMessage
-from tinylcel.messages import MessagesInput
 from tinylcel.runnable import RunnableBase
+from tinylcel.messages import MessagesInput
 
 
 @dataclass(frozen=True)
@@ -13,21 +14,21 @@ class BaseMessage:
     """Base class for messages in a chat conversation."""
 
     content: str
-    role: str = field(init=False) # Role is determined by subclass
+    role: str = field(init=False)  # Role is determined by subclass
 
 
 @dataclass(frozen=True)
 class HumanMessage(BaseMessage):
     """A message from the human user."""
 
-    role: str = field(default="human", init=False)
+    role: str = field(default='human', init=False)
 
 
 @dataclass(frozen=True)
 class SystemMessage(BaseMessage):
     """A message setting the context for the AI assistant (system prompt)."""
 
-    role: str = field(default="system", init=False)
+    role: str = field(default='system', init=False)
 
 
 class BaseChatModel(RunnableBase[MessagesInput, AIMessage], abc.ABC):
@@ -119,14 +120,3 @@ class BaseChatModel(RunnableBase[MessagesInput, AIMessage], abc.ABC):
             response.
         """
         return await self._agenerate(input)
-
-# Potential future addition: ChatResult for more complex outputs
-# @dataclass
-# class ChatGeneration:
-#     message: AIMessage
-#     generation_info: dict | None = None
-
-# @dataclass
-# class ChatResult:
-#     generations: list[ChatGeneration]
-#     llm_output: dict | None = None

@@ -36,7 +36,7 @@ if [ ! -d "${GIT_ROOT}/.pyenv" ]; then
 fi
 
 source "${GIT_ROOT}/.pyenv/bin/activate"
-uv pip install -e "${GIT_ROOT}[dev,openai]"
+uv pip install -e "${GIT_ROOT}[dev,openai,cohere,image]"
 
 echo "Environment configured successfully!"
 echo "To activate the environment, run: source ${GIT_ROOT}/.pyenv/bin/activate"

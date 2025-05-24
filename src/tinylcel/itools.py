@@ -7,16 +7,16 @@ from typing import AsyncIterable
 @overload
 async def arange(stop: int) -> AsyncIterable[int]: ...
 
+
 @overload
 async def arange(start: int, stop: int, step: int = 1) -> AsyncIterable[int]: ...
 
-async def arange(*args: int) -> AsyncIterable[int]: # type: ignore[misc]
+
+async def arange(*args: int) -> AsyncIterable[int]:  # type: ignore[misc]
     """Asynchronously generate a range of integers.
 
     Args:
-        start: The starting value of the range.
-        stop: The stopping value of the range.
-        step: The step value of the range.
+        *args: Variable arguments passed to range() - can be (stop), (start, stop), or (start, stop, step).
 
     """
     for i in range(*args):
@@ -71,8 +71,9 @@ async def atake[T](aiterable: AsyncIterable[T], n: int | None = None) -> AsyncIt
     if n == 0:
         return
     effective_n = n or sys.maxsize
-    async for _, item in azip(arange(effective_n), aiterable): # type: ignore[arg-type]
+    async for _, item in azip(arange(effective_n), aiterable):  # type: ignore[arg-type]
         yield item
+
 
 def batch[T](iterable: Iterable[T], batch_size: int | None = None) -> Iterable[list[T]]:
     """Batch items from an iterable into lists of a specified size.
@@ -86,14 +87,15 @@ def batch[T](iterable: Iterable[T], batch_size: int | None = None) -> Iterable[l
 
     """
     it = iter(iterable)
-    while (batch := list(take(it, batch_size))):
+    while batch := list(take(it, batch_size)):
         yield batch
+
 
 async def abatch[T](aiterable: AsyncIterable[T], batch_size: int | None = None) -> AsyncIterable[list[T]]:
     """Asynchronously batch items from an async iterable into lists of a specified size.
 
     Args:
-        aiter: The async iterable to batch items from.
+        aiterable: The async iterable to batch items from.
         batch_size: The size of each batch. If None, returns the entire async iterable as a single batch.
 
     Returns:
@@ -101,5 +103,5 @@ async def abatch[T](aiterable: AsyncIterable[T], batch_size: int | None = None) 
 
     """
     it = aiter(aiterable)
-    while (batch := [e async for e in atake(it, batch_size)]):
+    while batch := [e async for e in atake(it, batch_size)]:
         yield batch
