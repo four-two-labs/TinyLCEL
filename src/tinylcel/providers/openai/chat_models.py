@@ -13,9 +13,9 @@ from openai import AsyncAzureOpenAI
 
 from tinylcel.utils.auth import get_api_key
 from tinylcel.messages.base import AIMessage
+from tinylcel.chat_models import BaseChatModel
 from tinylcel.messages.base import BaseMessage
 from tinylcel.messages.base import MessagesInput
-from tinylcel.chat_models.base import BaseChatModel
 from tinylcel.messages.base import MessageContentBlock
 
 # Added TypeVar for from_client method
@@ -257,7 +257,7 @@ class AzureChatOpenAI(ChatOpenAI):
         self.model = self.model or self.azure_deployment  # type: ignore
 
 
-def from_client(
+def from_client(  # noqa: PLR0913
     client: openai.OpenAI,
     async_client: openai.AsyncOpenAI,
     model: str,
@@ -282,7 +282,7 @@ def from_client(
     )
 
 
-def from_azure_client(
+def from_azure_client(  # noqa: PLR0913
     client: openai.AzureOpenAI,
     async_client: openai.AsyncAzureOpenAI,
     model: str,

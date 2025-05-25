@@ -6,7 +6,7 @@ from typing import List
 import openai
 from dotenv import load_dotenv
 
-from tinylcel.embeddings.openai import from_client
+from tinylcel.providers.openai.embeddings import from_client
 
 
 async def main() -> None:

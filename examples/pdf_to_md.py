@@ -14,12 +14,13 @@ from PIL import Image  # type: ignore
 
 from tinylcel.runnable import Runnable
 from tinylcel.messages import SystemMessage
+from tinylcel.messages import HumanMessage
 from tinylcel.runnable import RunnableLambda
 from tinylcel.messages.chunks import TextChunk
-from tinylcel.chat_models.openai import ChatOpenAI
+from tinylcel.providers.openai import ChatOpenAI
 from tinylcel.output_parsers import StrOutputParser
 from tinylcel.messages.image_chunk import ImageChunk
-from tinylcel.chat_models.openai import BaseChatModel
+from tinylcel.chat_models import BaseChatModel
 
 
 def create_extract_chain(llm: BaseChatModel) -> Runnable[Image.Image, str]:
@@ -27,16 +28,15 @@ def create_extract_chain(llm: BaseChatModel) -> Runnable[Image.Image, str]:
     return (
         RunnableLambda(
             lambda img: [
-                TextChunk(
+                SystemMessage(content=(
                     "You are a helpful assistant that converts the content of an image " 
                     "into Markdown, preserving the original layout and structure as much "
                     "as possible."
-                )
-                + TextChunk('##IMAGE##')
-                + ImageChunk(img)
+                )),
+                ImageChunk(img)
             ]
         )
-        | llm
+        | llm  # type: ignore[operator]
         | StrOutputParser()
     )
 

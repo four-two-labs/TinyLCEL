@@ -5,7 +5,7 @@ import asyncio
 
 from dotenv import load_dotenv
 
-from tinylcel.embeddings.cohere import CohereEmbeddings
+from tinylcel.providers.cohere import CohereEmbeddings
 
 
 async def main():

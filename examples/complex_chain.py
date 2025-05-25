@@ -7,7 +7,7 @@ from tinylcel.runnable import runnable
 from tinylcel.messages import HumanMessage
 from tinylcel.messages import MessagesInput
 from tinylcel.runnable import RunnableLambda
-from tinylcel.chat_models.openai import ChatOpenAI
+from tinylcel.providers.openai import ChatOpenAI
 from tinylcel.output_parsers import StrOutputParser
 
 

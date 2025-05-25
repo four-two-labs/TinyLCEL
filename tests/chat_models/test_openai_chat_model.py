@@ -2,7 +2,6 @@
 
 import asyncio
 from typing import Any
-from typing import Dict
 from typing import Generator
 from dataclasses import field
 from unittest.mock import Mock
@@ -21,13 +20,15 @@ from tinylcel.messages import BaseMessage
 from tinylcel.messages import HumanMessage
 from tinylcel.messages import MessagesInput
 from tinylcel.messages import SystemMessage
-from tinylcel.chat_models.openai import ChatOpenAI
-from tinylcel.chat_models.openai import AzureChatOpenAI
+from tinylcel.providers.openai import ChatOpenAI
+from tinylcel.providers.openai import AzureChatOpenAI
 
 
 # Helper dataclass for testing unknown roles
 @dataclass(frozen=True)
 class SpecialRoleMessage(BaseMessage):
+    """Special message type for testing non-standard roles."""
+
     role: str = field(default='special_role', init=False)
 
 
@@ -41,7 +42,7 @@ TEST_OPENAI_API_KEY = 'test-openai-key'
 
 
 @pytest.fixture
-def mock_openai_clients(monkeypatch: pytest.MonkeyPatch) -> Generator[Dict[str, Any], None, None]:
+def mock_openai_clients() -> Generator[dict[str, Any], None, None]:
     """Fixture to mock openai.OpenAI and openai.AsyncOpenAI clients."""
     mock_sync_client = MagicMock(spec=openai.OpenAI)
     mock_sync_completions = MagicMock()
@@ -64,27 +65,31 @@ def mock_openai_clients(monkeypatch: pytest.MonkeyPatch) -> Generator[Dict[str, 
     mock_async_response.choices = [mock_async_choice]
     mock_async_create_method = AsyncMock(return_value=mock_async_response)
 
-    with patch('tinylcel.chat_models.openai.openai.OpenAI', return_value=mock_sync_client) as mock_sync_constructor:
-        with patch('tinylcel.chat_models.openai.openai.AsyncOpenAI') as mock_async_constructor_patch:
-            mock_async_client_instance = MagicMock()
-            mock_async_completions_instance = MagicMock()
-            mock_async_chat_instance = MagicMock()
-            mock_async_client_instance.chat = mock_async_chat_instance
-            mock_async_chat_instance.completions = mock_async_completions_instance
-            mock_async_completions_instance.create = mock_async_create_method
-            mock_async_constructor_patch.return_value = mock_async_client_instance
-            yield {
-                'sync_client': mock_sync_client,
-                'async_client': mock_async_client_instance,
-                'sync_create': mock_sync_completions.create,
-                'async_create': mock_async_create_method,
-                'sync_constructor': mock_sync_constructor,
-                'async_constructor': mock_async_constructor_patch,
-            }
+    with (
+        patch(
+            'tinylcel.providers.openai.chat_models.openai.OpenAI', return_value=mock_sync_client
+        ) as mock_sync_constructor,
+        patch('tinylcel.providers.openai.chat_models.openai.AsyncOpenAI') as mock_async_constructor_patch,
+    ):
+        mock_async_client_instance = MagicMock()
+        mock_async_completions_instance = MagicMock()
+        mock_async_chat_instance = MagicMock()
+        mock_async_client_instance.chat = mock_async_chat_instance
+        mock_async_chat_instance.completions = mock_async_completions_instance
+        mock_async_completions_instance.create = mock_async_create_method
+        mock_async_constructor_patch.return_value = mock_async_client_instance
+        yield {
+            'sync_client': mock_sync_client,
+            'async_client': mock_async_client_instance,
+            'sync_create': mock_sync_completions.create,
+            'async_create': mock_async_create_method,
+            'sync_constructor': mock_sync_constructor,
+            'async_constructor': mock_async_constructor_patch,
+        }
 
 
 @pytest.fixture
-def mock_azure_clients(monkeypatch: pytest.MonkeyPatch) -> Generator[Dict[str, Any], None, None]:
+def mock_azure_clients() -> Generator[dict[str, Any], None, None]:
     """Fixture to mock openai.AzureOpenAI and openai.AsyncAzureOpenAI clients."""
     mock_sync_azure_client = MagicMock(spec=openai.AzureOpenAI)
     mock_sync_azure_completions = MagicMock()
@@ -107,25 +112,27 @@ def mock_azure_clients(monkeypatch: pytest.MonkeyPatch) -> Generator[Dict[str, A
     mock_async_azure_response.choices = [mock_async_azure_choice]
     mock_async_azure_create_method = AsyncMock(return_value=mock_async_azure_response)
 
-    with patch(
-        'tinylcel.chat_models.openai.AzureOpenAI', return_value=mock_sync_azure_client
-    ) as mock_sync_azure_constructor:
-        with patch('tinylcel.chat_models.openai.AsyncAzureOpenAI') as mock_async_azure_constructor_patch:
-            mock_async_azure_client_instance = MagicMock(spec=openai.AsyncAzureOpenAI)
-            mock_async_azure_completions_instance = MagicMock()
-            mock_async_azure_chat_instance = MagicMock()
-            mock_async_azure_client_instance.chat = mock_async_azure_chat_instance
-            mock_async_azure_chat_instance.completions = mock_async_azure_completions_instance
-            mock_async_azure_completions_instance.create = mock_async_azure_create_method
-            mock_async_azure_constructor_patch.return_value = mock_async_azure_client_instance
-            yield {
-                'sync_client': mock_sync_azure_client,
-                'async_client': mock_async_azure_client_instance,
-                'sync_create': mock_sync_azure_completions.create,
-                'async_create': mock_async_azure_create_method,
-                'sync_constructor': mock_sync_azure_constructor,
-                'async_constructor': mock_async_azure_constructor_patch,
-            }
+    with (
+        patch(
+            'tinylcel.providers.openai.chat_models.AzureOpenAI', return_value=mock_sync_azure_client
+        ) as mock_sync_azure_constructor,
+        patch('tinylcel.providers.openai.chat_models.AsyncAzureOpenAI') as mock_async_azure_constructor_patch,
+    ):
+        mock_async_azure_client_instance = MagicMock(spec=openai.AsyncAzureOpenAI)
+        mock_async_azure_completions_instance = MagicMock()
+        mock_async_azure_chat_instance = MagicMock()
+        mock_async_azure_client_instance.chat = mock_async_azure_chat_instance
+        mock_async_azure_chat_instance.completions = mock_async_azure_completions_instance
+        mock_async_azure_completions_instance.create = mock_async_azure_create_method
+        mock_async_azure_constructor_patch.return_value = mock_async_azure_client_instance
+        yield {
+            'sync_client': mock_sync_azure_client,
+            'async_client': mock_async_azure_client_instance,
+            'sync_create': mock_sync_azure_completions.create,
+            'async_create': mock_async_azure_create_method,
+            'sync_constructor': mock_sync_azure_constructor,
+            'async_constructor': mock_async_azure_constructor_patch,
+        }
 
 
 @pytest.fixture
@@ -147,16 +154,12 @@ def sample_messages_dict_openai_fmt() -> list[dict[str, str]]:
 @pytest.fixture(autouse=True)
 def set_env_api_keys(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv('OPENAI_API_KEY', 'key-from-env-for-chat-tests')
-    # monkeypatch.setenv("AZURE_OPENAI_API_KEY", "azure-key-from-env-for-chat-tests") # Set this in specific Azure tests if needed
 
 
 # --- Test Cases for ChatOpenAI --- #
 
 
-def test_chatopenai_initialization_defaults(
-    mock_openai_clients: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # monkeypatch.setenv("OPENAI_API_KEY", "test-key-from-env") # Already set by autouse fixture
+def test_chatopenai_initialization_defaults(mock_openai_clients: dict[str, Any]) -> None:
     chat_model = ChatOpenAI()
     assert chat_model.model == 'gpt-3.5-turbo'
     assert chat_model.temperature is NOT_GIVEN
@@ -175,7 +178,7 @@ def test_chatopenai_initialization_defaults(
     mock_openai_clients['async_constructor'].assert_called_once_with(**expected_client_kwargs)
 
 
-def test_chatopenai_initialization_explicit_key(mock_openai_clients: Dict[str, Any]) -> None:
+def test_chatopenai_initialization_explicit_key(mock_openai_clients: dict[str, Any]) -> None:
     chat_model = ChatOpenAI(api_key=TEST_OPENAI_API_KEY)
     assert chat_model.api_key == TEST_OPENAI_API_KEY
     expected_client_kwargs = {'api_key': TEST_OPENAI_API_KEY, 'max_retries': DEFAULT_MAX_RETRIES, 'timeout': NOT_GIVEN}
@@ -183,7 +186,7 @@ def test_chatopenai_initialization_explicit_key(mock_openai_clients: Dict[str, A
     mock_openai_clients['async_constructor'].assert_called_once_with(**expected_client_kwargs)
 
 
-def test_chatopenai_initialization_custom_params(mock_openai_clients: Dict[str, Any]) -> None:
+def test_chatopenai_initialization_custom_params(mock_openai_clients: dict[str, Any]) -> None:
     custom_timeout_int = 30
     chat_model = ChatOpenAI(
         model='gpt-4',
@@ -205,7 +208,7 @@ def test_chatopenai_initialization_custom_params(mock_openai_clients: Dict[str, 
     mock_openai_clients['async_constructor'].assert_called_once_with(**expected_client_kwargs)
 
 
-def test_chatopenai_init_base_url_is_used_by_clients(mock_openai_clients: Dict[str, Any]) -> None:
+def test_chatopenai_init_base_url_is_used_by_clients(mock_openai_clients: dict[str, Any]) -> None:
     """Test that base_url is passed to OpenAI client constructors."""
     # The autouse set_env_api_keys fixture will set OPENAI_API_KEY to "key-from-env-for-chat-tests"
     # get_api_key will use this if api_key arg is None
@@ -226,7 +229,7 @@ def test_chatopenai_init_base_url_is_used_by_clients(mock_openai_clients: Dict[s
     mock_openai_clients['async_constructor'].assert_called_once_with(**expected_client_kwargs)
 
 
-def test_chatopenai_initialization_with_max_tokens_only(mock_openai_clients: Dict[str, Any]) -> None:
+def test_chatopenai_initialization_with_max_tokens_only(mock_openai_clients: dict[str, Any]) -> None:
     chat_model = ChatOpenAI(max_tokens=100, api_key='mt-key')
     assert chat_model.max_tokens == 100
     assert chat_model.temperature is NOT_GIVEN
@@ -239,7 +242,7 @@ def test_chatopenai_initialization_with_max_tokens_only(mock_openai_clients: Dic
     )
 
 
-def test_chatopenai_initialization_with_max_completion_tokens_only(mock_openai_clients: Dict[str, Any]) -> None:
+def test_chatopenai_initialization_with_max_completion_tokens_only(mock_openai_clients: dict[str, Any]) -> None:
     chat_model = ChatOpenAI(max_completion_tokens=200, api_key='mct-key')
     assert chat_model.max_completion_tokens == 200
     assert chat_model.temperature is NOT_GIVEN
@@ -253,21 +256,21 @@ def test_chatopenai_initialization_with_max_completion_tokens_only(mock_openai_c
 
 
 @pytest.mark.parametrize(
-    'input_message, expected_dict',
+    ('input_message', 'expected_dict'),
     [
         (SystemMessage(content='System prompt'), {'role': 'system', 'content': 'System prompt'}),
         (HumanMessage(content='User query'), {'role': 'user', 'content': 'User query'}),
         (AIMessage(content='Assistant response'), {'role': 'assistant', 'content': 'Assistant response'}),
     ],
 )
-def test_convert_message_to_dict(mock_openai_clients, input_message, expected_dict):
+@pytest.mark.usefixtures('mock_openai_clients')
+def test_convert_message_to_dict(input_message: BaseMessage, expected_dict: dict[str, str]) -> None:
     chat_model = ChatOpenAI()
     assert chat_model._convert_message_to_dict(input_message) == expected_dict
 
 
-def test_convert_message_to_dict_unknown_role_passthrough(
-    mock_openai_clients: dict,  # Fixture just to instantiate the class
-) -> None:
+@pytest.mark.usefixtures('mock_openai_clients')
+def test_convert_message_to_dict_unknown_role_passthrough() -> None:
     """Test _convert_message_to_dict passes through unknown roles."""
     chat_model = ChatOpenAI()
     # Use the new SpecialRoleMessage
@@ -279,7 +282,11 @@ def test_convert_message_to_dict_unknown_role_passthrough(
 # --- ChatOpenAI Invoke / _generate Tests --- #
 
 
-def test_chatopenai_generate_success_defaults(mock_openai_clients, sample_messages, sample_messages_dict_openai_fmt):
+def test_chatopenai_generate_success_defaults(
+    mock_openai_clients: dict[str, Any],
+    sample_messages: MessagesInput,
+    sample_messages_dict_openai_fmt: list[dict[str, str]],
+) -> None:
     chat_model = ChatOpenAI()
     result = chat_model._generate(sample_messages)
     assert isinstance(result, AIMessage)
@@ -295,8 +302,10 @@ def test_chatopenai_generate_success_defaults(mock_openai_clients, sample_messag
 
 @pytest.mark.asyncio
 async def test_chatopenai_agenerate_success_defaults(
-    mock_openai_clients, sample_messages, sample_messages_dict_openai_fmt
-):
+    mock_openai_clients: dict[str, Any],
+    sample_messages: MessagesInput,
+    sample_messages_dict_openai_fmt: list[dict[str, str]],
+) -> None:
     chat_model = ChatOpenAI()
     result = await chat_model._agenerate(sample_messages)
     assert isinstance(result, AIMessage)
@@ -311,8 +320,10 @@ async def test_chatopenai_agenerate_success_defaults(
 
 
 def test_chatopenai_generate_with_all_optional_params_set(
-    mock_openai_clients, sample_messages, sample_messages_dict_openai_fmt
-):
+    mock_openai_clients: dict[str, Any],
+    sample_messages: MessagesInput,
+    sample_messages_dict_openai_fmt: list[dict[str, str]],
+) -> None:
     chat_model = ChatOpenAI(temperature=0.2, max_tokens=50, max_completion_tokens=25)
     result = chat_model._generate(sample_messages)
     assert isinstance(result, AIMessage)
@@ -328,8 +339,10 @@ def test_chatopenai_generate_with_all_optional_params_set(
 
 @pytest.mark.asyncio
 async def test_chatopenai_agenerate_with_all_optional_params_set(
-    mock_openai_clients, sample_messages, sample_messages_dict_openai_fmt
-):
+    mock_openai_clients: dict[str, Any],
+    sample_messages: MessagesInput,
+    sample_messages_dict_openai_fmt: list[dict[str, str]],
+) -> None:
     chat_model = ChatOpenAI(temperature=0.3, max_tokens=60, max_completion_tokens=30)
     result = await chat_model._agenerate(sample_messages)
     assert isinstance(result, AIMessage)
@@ -344,7 +357,7 @@ async def test_chatopenai_agenerate_with_all_optional_params_set(
 
 
 @pytest.mark.parametrize(
-    'param_name, param_value',
+    ('param_name', 'param_value'),
     [
         ('temperature', 0.11),
         ('max_tokens', 111),
@@ -380,7 +393,7 @@ def test_chatopenai_generate_specific_optional_param(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    'param_name, param_value',
+    ('param_name', 'param_value'),
     [
         ('temperature', 0.22),
         ('max_tokens', 333),
@@ -414,7 +427,11 @@ async def test_chatopenai_agenerate_specific_optional_param(
     mock_openai_clients['async_create'].assert_awaited_once_with(**expected_api_kwargs)
 
 
-def test_chatopenai_invoke_success_defaults(mock_openai_clients, sample_messages, sample_messages_dict_openai_fmt):
+def test_chatopenai_invoke_success_defaults(
+    mock_openai_clients: dict[str, Any],
+    sample_messages: MessagesInput,
+    sample_messages_dict_openai_fmt: list[dict[str, str]],
+) -> None:
     chat_model = ChatOpenAI()
     result = chat_model.invoke(sample_messages)
     assert isinstance(result, AIMessage)
@@ -430,8 +447,10 @@ def test_chatopenai_invoke_success_defaults(mock_openai_clients, sample_messages
 
 @pytest.mark.asyncio
 async def test_chatopenai_ainvoke_success_defaults(
-    mock_openai_clients, sample_messages, sample_messages_dict_openai_fmt
-):
+    mock_openai_clients: dict[str, Any],
+    sample_messages: MessagesInput,
+    sample_messages_dict_openai_fmt: list[dict[str, str]],
+) -> None:
     chat_model = ChatOpenAI()
     result = await chat_model.ainvoke(sample_messages)
     assert isinstance(result, AIMessage)
@@ -445,14 +464,14 @@ async def test_chatopenai_ainvoke_success_defaults(
     )
 
 
-def test_chatopenai_generate_api_error(mock_openai_clients, sample_messages):
+def test_chatopenai_generate_api_error(mock_openai_clients: dict[str, Any], sample_messages: MessagesInput) -> None:
     mock_openai_clients['sync_create'].side_effect = openai.APIError('API Failed', request=Mock(), body=None)
     chat_model = ChatOpenAI()
     with pytest.raises(openai.APIError, match='API Failed'):
         chat_model._generate(sample_messages)
 
 
-def test_chatopenai_generate_none_content(mock_openai_clients, sample_messages):
+def test_chatopenai_generate_none_content(mock_openai_clients: dict[str, Any], sample_messages: MessagesInput) -> None:
     mock_response = mock_openai_clients['sync_create'].return_value
     mock_response.choices[0].message.content = None
     chat_model = ChatOpenAI()
@@ -461,7 +480,9 @@ def test_chatopenai_generate_none_content(mock_openai_clients, sample_messages):
 
 
 @pytest.mark.asyncio
-async def test_chatopenai_agenerate_api_error(mock_openai_clients, sample_messages):
+async def test_chatopenai_agenerate_api_error(
+    mock_openai_clients: dict[str, Any], sample_messages: MessagesInput
+) -> None:
     mock_openai_clients['async_create'].side_effect = openai.APIError('Async API Failed', request=Mock(), body=None)
     chat_model = ChatOpenAI()
     with pytest.raises(openai.APIError, match='Async API Failed'):
@@ -469,7 +490,9 @@ async def test_chatopenai_agenerate_api_error(mock_openai_clients, sample_messag
 
 
 @pytest.mark.asyncio
-async def test_chatopenai_agenerate_none_content(mock_openai_clients, sample_messages):
+async def test_chatopenai_agenerate_none_content(
+    mock_openai_clients: dict[str, Any], sample_messages: MessagesInput
+) -> None:
     mock_response = mock_openai_clients['async_create'].return_value
     mock_response.choices[0].message.content = None
     mock_openai_clients['async_create'].side_effect = None
@@ -481,7 +504,7 @@ async def test_chatopenai_agenerate_none_content(mock_openai_clients, sample_mes
 
 
 # --- ChatOpenAI Batch Tests --- #
-def test_chatopenai_batch_success(mock_openai_clients, sample_messages):
+def test_chatopenai_batch_success(mock_openai_clients: dict[str, Any], sample_messages: MessagesInput) -> None:
     chat_model = ChatOpenAI()
     inputs = [sample_messages, sample_messages]
     mock_openai_clients['sync_create'].side_effect = [
@@ -490,14 +513,16 @@ def test_chatopenai_batch_success(mock_openai_clients, sample_messages):
     ]
     results = chat_model.batch(inputs)
     assert len(results) == 2
-    assert results[0].content == 'Sync Resp 1'
-    assert results[1].content == 'Sync Resp 2'
+    assert results[0].content == 'Sync Resp 1'  # type: ignore[union-attr]
+    assert results[1].content == 'Sync Resp 2'  # type: ignore[union-attr]
     assert mock_openai_clients['sync_create'].call_count == 2
 
 
-def test_chatopenai_batch_return_exceptions(mock_openai_clients, sample_messages):
+def test_chatopenai_batch_return_exceptions(
+    mock_openai_clients: dict[str, Any], sample_messages: MessagesInput
+) -> None:
     chat_model = ChatOpenAI()
-    inputs = [sample_messages, [HumanMessage(content='error trigger')], sample_messages]
+    inputs: list[MessagesInput] = [sample_messages, [HumanMessage(content='error trigger')], sample_messages]
     error = ValueError('Batch Error')
     mock_openai_clients['sync_create'].side_effect = [
         MagicMock(choices=[MagicMock(message=MagicMock(content='Sync Resp 1'))]),
@@ -506,14 +531,17 @@ def test_chatopenai_batch_return_exceptions(mock_openai_clients, sample_messages
     ]
     results = chat_model.batch(inputs, return_exceptions=True)
     assert len(results) == 3
-    assert results[0].content == 'Sync Resp 1'
+    # Type narrowing: check if result is AIMessage before accessing content
+    assert isinstance(results[0], AIMessage)
+    assert results[0].content == 'Sync Resp 1'  # type: ignore[union-attr]
     assert results[1] is error
-    assert results[2].content == 'Sync Resp 3'
+    assert isinstance(results[2], AIMessage)
+    assert results[2].content == 'Sync Resp 3'  # type: ignore[union-attr]
     assert mock_openai_clients['sync_create'].call_count == 3
 
 
 @pytest.mark.asyncio
-async def test_chatopenai_abatch_success(mock_openai_clients, sample_messages):
+async def test_chatopenai_abatch_success(mock_openai_clients: dict[str, Any], sample_messages: MessagesInput) -> None:
     chat_model = ChatOpenAI()
     inputs = [sample_messages, sample_messages]
     mock_openai_clients['async_create'].side_effect = [
@@ -522,15 +550,17 @@ async def test_chatopenai_abatch_success(mock_openai_clients, sample_messages):
     ]
     results = await chat_model.abatch(inputs)
     assert len(results) == 2
-    assert results[0].content == 'Async Resp 1'
-    assert results[1].content == 'Async Resp 2'
+    assert results[0].content == 'Async Resp 1'  # type: ignore[union-attr]
+    assert results[1].content == 'Async Resp 2'  # type: ignore[union-attr]
     assert mock_openai_clients['async_create'].await_count == 2
 
 
 @pytest.mark.asyncio
-async def test_chatopenai_abatch_return_exceptions(mock_openai_clients, sample_messages):
+async def test_chatopenai_abatch_return_exceptions(
+    mock_openai_clients: dict[str, Any], sample_messages: MessagesInput
+) -> None:
     chat_model = ChatOpenAI()
-    inputs = [sample_messages, [HumanMessage(content='error trigger')], sample_messages]
+    inputs: list[MessagesInput] = [sample_messages, [HumanMessage(content='error trigger')], sample_messages]
     error = ValueError('Async Batch Error')
     mock_openai_clients['async_create'].side_effect = [
         MagicMock(choices=[MagicMock(message=MagicMock(content='Async Resp 1'))]),
@@ -539,16 +569,21 @@ async def test_chatopenai_abatch_return_exceptions(mock_openai_clients, sample_m
     ]
     results = await chat_model.abatch(inputs, return_exceptions=True)
     assert len(results) == 3
-    assert results[0].content == 'Async Resp 1'
+    # Type narrowing: check if result is AIMessage before accessing content
+    assert isinstance(results[0], AIMessage)
+    assert results[0].content == 'Async Resp 1'  # type: ignore[union-attr]
     assert results[1] is error
-    assert results[2].content == 'Async Resp 3'
+    assert isinstance(results[2], AIMessage)
+    assert results[2].content == 'Async Resp 3'  # type: ignore[union-attr]
     assert mock_openai_clients['async_create'].await_count == 3
 
 
 # --- AzureChatOpenAI Tests (New and existing combined) --- #
 
 
-def test_azure_chatopenai_initialization_defaults_env_key(mock_azure_clients, monkeypatch):
+def test_azure_chatopenai_initialization_defaults_env_key(
+    mock_azure_clients: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setenv('AZURE_OPENAI_API_KEY', TEST_AZURE_API_KEY)
     monkeypatch.delenv('OPENAI_API_KEY', raising=False)
     explicit_timeout_int_for_azure = 50
@@ -843,8 +878,8 @@ def test_azure_chatopenai_invoke_no_deployment_no_model_uses_default(
 # --- Tests for standalone from_client functions --- #
 
 
-def test_chatopenai_from_client(mock_openai_clients: Dict[str, Any]) -> None:
-    from tinylcel.chat_models.openai import from_client
+def test_chatopenai_from_client(mock_openai_clients: dict[str, Any]) -> None:
+    from tinylcel.providers.openai.chat_models import from_client
 
     instance = from_client(
         client=mock_openai_clients['sync_client'],
@@ -870,8 +905,8 @@ def test_chatopenai_from_client(mock_openai_clients: Dict[str, Any]) -> None:
 # --- Tests for Azure standalone from_azure_client function --- #
 
 
-def test_azure_chatopenai_from_client_success(mock_azure_clients: Dict[str, Any]) -> None:
-    from tinylcel.chat_models.openai import from_azure_client
+def test_azure_chatopenai_from_client_success(mock_azure_clients: dict[str, Any]) -> None:
+    from tinylcel.providers.openai.chat_models import from_azure_client
 
     instance = from_azure_client(
         client=mock_azure_clients['sync_client'],

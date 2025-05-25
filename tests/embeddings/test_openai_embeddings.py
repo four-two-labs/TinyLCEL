@@ -1,7 +1,4 @@
 from typing import Any
-from typing import Dict
-from typing import List
-from typing import Tuple
 from typing import Generator
 from unittest.mock import Mock
 from unittest.mock import patch
@@ -21,8 +18,8 @@ from openai._types import NOT_GIVEN
 from openai import OpenAI as RealOpenAI
 from openai import AsyncOpenAI as RealAsyncOpenAI
 
-from tinylcel.embeddings.openai import OpenAIEmbeddings
-from tinylcel.embeddings.openai import AzureOpenAIEmbeddings
+from tinylcel.providers.openai import OpenAIEmbeddings
+from tinylcel.providers.openai import AzureOpenAIEmbeddings
 
 # --- Constants for Tests ---
 TEST_OPENAI_API_KEY = 'test-openai-key-for-embeddings'
@@ -56,7 +53,7 @@ mock_azure_create_embedding_response.data = [mock_azure_embedding_1, mock_azure_
 
 # --- Fixtures ---
 @pytest.fixture
-def mock_openai_clients_for_embeddings() -> Generator[Dict[str, Any], None, None]:
+def mock_openai_clients_for_embeddings() -> Generator[dict[str, Any], None, None]:
     mock_sync_openai_client = MagicMock(spec=OpenAI)
     mock_sync_openai_client.copy = MagicMock(return_value=MagicMock(spec=OpenAI))
     mock_sync_embeddings_service = MagicMock(spec=openai.resources.Embeddings)
@@ -68,24 +65,26 @@ def mock_openai_clients_for_embeddings() -> Generator[Dict[str, Any], None, None
     mock_async_create_method = AsyncMock(return_value=mock_openai_create_embedding_response)
     mock_async_embeddings_service.create = mock_async_create_method
     mock_async_openai_client.embeddings = mock_async_embeddings_service
-    with patch(
-        'tinylcel.embeddings.openai.openai.OpenAI', return_value=mock_sync_openai_client
-    ) as mock_sync_constructor:
-        with patch(
-            'tinylcel.embeddings.openai.openai.AsyncOpenAI', return_value=mock_async_openai_client
-        ) as mock_async_constructor:
-            yield {
-                'sync_client': mock_sync_openai_client,
-                'async_client': mock_async_openai_client,
-                'sync_create': mock_sync_embeddings_service.create,
-                'async_create': mock_async_create_method,
-                'sync_constructor': mock_sync_constructor,
-                'async_constructor': mock_async_constructor,
-            }
+    with (
+        patch(
+            'tinylcel.providers.openai.embeddings.openai.OpenAI', return_value=mock_sync_openai_client
+        ) as mock_sync_constructor,
+        patch(
+            'tinylcel.providers.openai.embeddings.openai.AsyncOpenAI', return_value=mock_async_openai_client
+        ) as mock_async_constructor,
+    ):
+        yield {
+            'sync_client': mock_sync_openai_client,
+            'async_client': mock_async_openai_client,
+            'sync_create': mock_sync_embeddings_service.create,
+            'async_create': mock_async_create_method,
+            'sync_constructor': mock_sync_constructor,
+            'async_constructor': mock_async_constructor,
+        }
 
 
 @pytest.fixture
-def mock_azure_clients_for_embeddings() -> Generator[Dict[str, Any], None, None]:
+def mock_azure_clients_for_embeddings() -> Generator[dict[str, Any], None, None]:
     mock_sync_azure_client = MagicMock(spec=AzureOpenAI)
     mock_sync_azure_embeddings_service = MagicMock(spec=openai.resources.Embeddings)
     mock_sync_azure_embeddings_service.create.return_value = mock_azure_create_embedding_response
@@ -95,20 +94,22 @@ def mock_azure_clients_for_embeddings() -> Generator[Dict[str, Any], None, None]
     mock_async_azure_create_method = AsyncMock(return_value=mock_azure_create_embedding_response)
     mock_async_azure_embeddings_service.create = mock_async_azure_create_method
     mock_async_azure_client.embeddings = mock_async_azure_embeddings_service
-    with patch(
-        'tinylcel.embeddings.openai.AzureOpenAI', return_value=mock_sync_azure_client
-    ) as mock_sync_azure_constructor:
-        with patch(
-            'tinylcel.embeddings.openai.AsyncAzureOpenAI', return_value=mock_async_azure_client
-        ) as mock_async_azure_constructor:
-            yield {
-                'sync_client': mock_sync_azure_client,
-                'async_client': mock_async_azure_client,
-                'sync_create': mock_sync_azure_embeddings_service.create,
-                'async_create': mock_async_azure_create_method,
-                'sync_constructor': mock_sync_azure_constructor,
-                'async_constructor': mock_async_azure_constructor,
-            }
+    with (
+        patch(
+            'tinylcel.providers.openai.embeddings.AzureOpenAI', return_value=mock_sync_azure_client
+        ) as mock_sync_azure_constructor,
+        patch(
+            'tinylcel.providers.openai.embeddings.AsyncAzureOpenAI', return_value=mock_async_azure_client
+        ) as mock_async_azure_constructor,
+    ):
+        yield {
+            'sync_client': mock_sync_azure_client,
+            'async_client': mock_async_azure_client,
+            'sync_create': mock_sync_azure_embeddings_service.create,
+            'async_create': mock_async_azure_create_method,
+            'sync_constructor': mock_sync_azure_constructor,
+            'async_constructor': mock_async_azure_constructor,
+        }
 
 
 @pytest.fixture(autouse=True)
@@ -123,7 +124,7 @@ def set_env_api_keys(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture
-def sample_texts_and_query() -> Tuple[List[str], str]:
+def sample_texts_and_query() -> tuple[list[str], str]:
     return SAMPLE_DOC_TEXTS, SAMPLE_QUERY_TEXT
 
 
@@ -134,7 +135,7 @@ def test_file_setup_placeholder() -> None:
 
 # --- OpenAIEmbeddings Initialization Tests ---
 def test_openai_embeddings_initialization_defaults(
-    mock_openai_clients_for_embeddings: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    mock_openai_clients_for_embeddings: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv('OPENAI_API_KEY', 'env-key-for-openai-init')
     embedder = OpenAIEmbeddings()
@@ -155,7 +156,7 @@ def test_openai_embeddings_initialization_defaults(
     assert embedder._async_client == mock_openai_clients_for_embeddings['async_client']
 
 
-def test_openai_embeddings_initialization_explicit_key(mock_openai_clients_for_embeddings: Dict[str, Any]) -> None:
+def test_openai_embeddings_initialization_explicit_key(mock_openai_clients_for_embeddings: dict[str, Any]) -> None:
     embedder = OpenAIEmbeddings(api_key=TEST_OPENAI_API_KEY)
     assert embedder.api_key == TEST_OPENAI_API_KEY
     expected_client_kwargs = {
@@ -167,7 +168,7 @@ def test_openai_embeddings_initialization_explicit_key(mock_openai_clients_for_e
     mock_openai_clients_for_embeddings['async_constructor'].assert_called_once_with(**expected_client_kwargs)
 
 
-def test_openai_embeddings_initialization_custom_params(mock_openai_clients_for_embeddings: Dict[str, Any]) -> None:
+def test_openai_embeddings_initialization_custom_params(mock_openai_clients_for_embeddings: dict[str, Any]) -> None:
     custom_timeout = Timeout(timeout=30.0, connect=5.0)  # openai.Timeout
     embedder = OpenAIEmbeddings(
         model=OPENAI_EMBEDDING_MODEL_V3_SMALL,
@@ -193,7 +194,7 @@ def test_openai_embeddings_initialization_custom_params(mock_openai_clients_for_
 
 
 # --- OpenAIEmbeddings Method Tests ---
-def test_openai_embeddings_prepare_kwargs(sample_texts_and_query: Tuple[List[str], str]) -> None:
+def test_openai_embeddings_prepare_kwargs(sample_texts_and_query: tuple[list[str], str]) -> None:
     texts, _ = sample_texts_and_query
     embedder_no_dims = OpenAIEmbeddings(model=OPENAI_EMBEDDING_MODEL_V3_SMALL, api_key='dummy')
     kwargs_no_dims = embedder_no_dims._prepare_create_embedding_kwargs(texts)
@@ -204,7 +205,7 @@ def test_openai_embeddings_prepare_kwargs(sample_texts_and_query: Tuple[List[str
 
 
 def test_openai_embed_documents_success(
-    mock_openai_clients_for_embeddings: Dict[str, Any], sample_texts_and_query: Tuple[List[str], str]
+    mock_openai_clients_for_embeddings: dict[str, Any], sample_texts_and_query: tuple[list[str], str]
 ) -> None:
     texts, _ = sample_texts_and_query
     embedder = OpenAIEmbeddings(model=OPENAI_EMBEDDING_MODEL, api_key=TEST_OPENAI_API_KEY)
@@ -216,7 +217,7 @@ def test_openai_embed_documents_success(
 
 
 def test_openai_embed_query_success(
-    mock_openai_clients_for_embeddings: Dict[str, Any], sample_texts_and_query: Tuple[List[str], str]
+    mock_openai_clients_for_embeddings: dict[str, Any], sample_texts_and_query: tuple[list[str], str]
 ) -> None:
     _, query = sample_texts_and_query
     embedder = OpenAIEmbeddings(model=OPENAI_EMBEDDING_MODEL, api_key=TEST_OPENAI_API_KEY)
@@ -233,7 +234,7 @@ def test_openai_embed_query_success(
 
 
 def test_openai_embed_documents_with_dimensions(
-    mock_openai_clients_for_embeddings: Dict[str, Any], sample_texts_and_query: Tuple[List[str], str]
+    mock_openai_clients_for_embeddings: dict[str, Any], sample_texts_and_query: tuple[list[str], str]
 ) -> None:
     texts, _ = sample_texts_and_query
     embedder = OpenAIEmbeddings(model=OPENAI_EMBEDDING_MODEL_V3_SMALL, dimensions=256, api_key=TEST_OPENAI_API_KEY)
@@ -244,7 +245,7 @@ def test_openai_embed_documents_with_dimensions(
 
 
 def test_openai_embed_query_with_dimensions(
-    mock_openai_clients_for_embeddings: Dict[str, Any], sample_texts_and_query: Tuple[List[str], str]
+    mock_openai_clients_for_embeddings: dict[str, Any], sample_texts_and_query: tuple[list[str], str]
 ) -> None:
     _, query = sample_texts_and_query
     embedder = OpenAIEmbeddings(model=OPENAI_EMBEDDING_MODEL_V3_SMALL, dimensions=1024, api_key=TEST_OPENAI_API_KEY)
@@ -260,7 +261,7 @@ def test_openai_embed_query_with_dimensions(
 
 
 def test_openai_embed_documents_api_error(
-    mock_openai_clients_for_embeddings: Dict[str, Any], sample_texts_and_query: Tuple[List[str], str]
+    mock_openai_clients_for_embeddings: dict[str, Any], sample_texts_and_query: tuple[list[str], str]
 ) -> None:
     texts, _ = sample_texts_and_query
     mock_openai_clients_for_embeddings['sync_create'].side_effect = openai.APIError(
@@ -272,7 +273,7 @@ def test_openai_embed_documents_api_error(
 
 
 def test_openai_embed_query_api_error(
-    mock_openai_clients_for_embeddings: Dict[str, Any], sample_texts_and_query: Tuple[List[str], str]
+    mock_openai_clients_for_embeddings: dict[str, Any], sample_texts_and_query: tuple[list[str], str]
 ) -> None:
     _, query = sample_texts_and_query
     mock_openai_clients_for_embeddings['sync_create'].side_effect = openai.APIError(
@@ -286,7 +287,7 @@ def test_openai_embed_query_api_error(
 # --- OpenAIEmbeddings Async Method Tests ---
 @pytest.mark.asyncio
 async def test_openai_aembed_documents_success(
-    mock_openai_clients_for_embeddings: Dict[str, Any], sample_texts_and_query: Tuple[List[str], str]
+    mock_openai_clients_for_embeddings: dict[str, Any], sample_texts_and_query: tuple[list[str], str]
 ) -> None:
     texts, _ = sample_texts_and_query
     embedder = OpenAIEmbeddings(model=OPENAI_EMBEDDING_MODEL, api_key=TEST_OPENAI_API_KEY)
@@ -299,7 +300,7 @@ async def test_openai_aembed_documents_success(
 
 @pytest.mark.asyncio
 async def test_openai_aembed_query_success(
-    mock_openai_clients_for_embeddings: Dict[str, Any], sample_texts_and_query: Tuple[List[str], str]
+    mock_openai_clients_for_embeddings: dict[str, Any], sample_texts_and_query: tuple[list[str], str]
 ) -> None:
     _, query = sample_texts_and_query
     embedder = OpenAIEmbeddings(model=OPENAI_EMBEDDING_MODEL, api_key=TEST_OPENAI_API_KEY)
@@ -317,7 +318,7 @@ async def test_openai_aembed_query_success(
 
 @pytest.mark.asyncio
 async def test_openai_aembed_documents_with_dimensions(
-    mock_openai_clients_for_embeddings: Dict[str, Any], sample_texts_and_query: Tuple[List[str], str]
+    mock_openai_clients_for_embeddings: dict[str, Any], sample_texts_and_query: tuple[list[str], str]
 ) -> None:
     texts, _ = sample_texts_and_query
     embedder = OpenAIEmbeddings(model=OPENAI_EMBEDDING_MODEL_V3_SMALL, dimensions=256, api_key=TEST_OPENAI_API_KEY)
@@ -328,7 +329,9 @@ async def test_openai_aembed_documents_with_dimensions(
 
 
 @pytest.mark.asyncio
-async def test_openai_aembed_query_with_dimensions(mock_openai_clients_for_embeddings, sample_texts_and_query):
+async def test_openai_aembed_query_with_dimensions(
+    mock_openai_clients_for_embeddings: dict[str, Any], sample_texts_and_query: tuple[list[str], str]
+) -> None:
     _, query = sample_texts_and_query
     embedder = OpenAIEmbeddings(model=OPENAI_EMBEDDING_MODEL_V3_SMALL, dimensions=1024, api_key=TEST_OPENAI_API_KEY)
     mock_single_embedding = MagicMock(spec=openai.types.Embedding)
@@ -343,7 +346,9 @@ async def test_openai_aembed_query_with_dimensions(mock_openai_clients_for_embed
 
 
 @pytest.mark.asyncio
-async def test_openai_aembed_documents_api_error(mock_openai_clients_for_embeddings, sample_texts_and_query):
+async def test_openai_aembed_documents_api_error(
+    mock_openai_clients_for_embeddings: dict[str, Any], sample_texts_and_query: tuple[list[str], str]
+) -> None:
     texts, _ = sample_texts_and_query
     mock_openai_clients_for_embeddings['async_create'].side_effect = openai.APIError(
         message='Async OpenAI API Failed', request=Mock(), body=None
@@ -354,7 +359,9 @@ async def test_openai_aembed_documents_api_error(mock_openai_clients_for_embeddi
 
 
 @pytest.mark.asyncio
-async def test_openai_aembed_query_api_error(mock_openai_clients_for_embeddings, sample_texts_and_query):
+async def test_openai_aembed_query_api_error(
+    mock_openai_clients_for_embeddings: dict[str, Any], sample_texts_and_query: tuple[list[str], str]
+) -> None:
     _, query = sample_texts_and_query
     mock_openai_clients_for_embeddings['async_create'].side_effect = openai.APIError(
         message='Async OpenAI Query API Failed', request=Mock(), body=None
@@ -365,8 +372,8 @@ async def test_openai_aembed_query_api_error(mock_openai_clients_for_embeddings,
 
 
 # --- OpenAIEmbeddings from_client Tests ---
-def test_openai_embeddings_from_client(mock_openai_clients_for_embeddings: Dict[str, Any]) -> None:
-    from tinylcel.embeddings.openai import from_client
+def test_openai_embeddings_from_client(mock_openai_clients_for_embeddings: dict[str, Any]) -> None:
+    from tinylcel.providers.openai.embeddings import from_client
 
     instance = from_client(
         client=mock_openai_clients_for_embeddings['sync_client'],
@@ -386,8 +393,9 @@ def test_openai_embeddings_from_client(mock_openai_clients_for_embeddings: Dict[
 
 
 # --- AzureOpenAIEmbeddings Tests ---
+@pytest.mark.usefixtures('set_env_api_keys')
 def test_azure_openai_embeddings_initialization_required_params(
-    mock_azure_clients_for_embeddings: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    mock_azure_clients_for_embeddings: dict[str, Any],
 ) -> None:
     # Env vars AZURE_OPENAI_API_KEY and OPENAI_API_VERSION are set by autouse fixture set_env_api_keys
     # AzureOpenAIEmbeddings will use these if api_key/api_version args are not passed to its constructor
@@ -419,7 +427,7 @@ def test_azure_openai_embeddings_initialization_required_params(
 
 
 def test_azure_openai_embeddings_initialization_explicit_key_and_model(
-    mock_azure_clients_for_embeddings: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    mock_azure_clients_for_embeddings: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Explicitly clear AZURE_OPENAI_API_KEY to ensure api_key arg is used by get_api_key
     monkeypatch.delenv('AZURE_OPENAI_API_KEY', raising=False)
@@ -442,9 +450,8 @@ def test_azure_openai_embeddings_initialization_explicit_key_and_model(
     mock_azure_clients_for_embeddings['async_constructor'].assert_called_once_with(**expected_kwargs)
 
 
-def test_azure_openai_embeddings_initialization_deployment_overrides_model(
-    mock_azure_clients_for_embeddings: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
-) -> None:
+@pytest.mark.usefixtures('mock_azure_clients_for_embeddings')
+def test_azure_openai_embeddings_initialization_deployment_overrides_model(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv('AZURE_OPENAI_API_KEY', raising=False)
     embedder = AzureOpenAIEmbeddings(
         azure_endpoint=AZURE_ENDPOINT,
@@ -457,7 +464,7 @@ def test_azure_openai_embeddings_initialization_deployment_overrides_model(
 
 
 def test_azure_openai_embeddings_initialization_custom_openai_params(
-    mock_azure_clients_for_embeddings: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    mock_azure_clients_for_embeddings: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv('AZURE_OPENAI_API_KEY', raising=False)
     custom_timeout = Timeout(timeout=25.0)
@@ -485,7 +492,7 @@ def test_azure_openai_embeddings_initialization_custom_openai_params(
 
 
 def test_azure_openai_embeddings_missing_deployment_and_model_raises_error(
-    mock_azure_clients_for_embeddings: Dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    mock_azure_clients_for_embeddings: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.delenv('AZURE_OPENAI_API_KEY', raising=False)  # Ensure get_api_key uses direct api_key arg if present
     with pytest.raises(ValueError, match="Either 'azure_deployment' or a valid 'model' name must be provided"):
@@ -508,8 +515,8 @@ def test_azure_openai_embeddings_missing_deployment_and_model_raises_error(
 
 
 def test_azure_embed_documents_uses_azure_client_and_deployment_model(
-    mock_azure_clients_for_embeddings: Dict[str, Any],
-    sample_texts_and_query: Tuple[List[str], str],
+    mock_azure_clients_for_embeddings: dict[str, Any],
+    sample_texts_and_query: tuple[list[str], str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv('AZURE_OPENAI_API_KEY', raising=False)
@@ -530,8 +537,8 @@ def test_azure_embed_documents_uses_azure_client_and_deployment_model(
 
 @pytest.mark.asyncio
 async def test_azure_aembed_query_uses_azure_client_and_deployment_model(
-    mock_azure_clients_for_embeddings: Dict[str, Any],
-    sample_texts_and_query: Tuple[List[str], str],
+    mock_azure_clients_for_embeddings: dict[str, Any],
+    sample_texts_and_query: tuple[list[str], str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv('AZURE_OPENAI_API_KEY', raising=False)
@@ -555,8 +562,8 @@ async def test_azure_aembed_query_uses_azure_client_and_deployment_model(
 
 
 def test_azure_embed_documents_api_error(
-    mock_azure_clients_for_embeddings: Dict[str, Any],
-    sample_texts_and_query: Tuple[List[str], str],
+    mock_azure_clients_for_embeddings: dict[str, Any],
+    sample_texts_and_query: tuple[list[str], str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv('AZURE_OPENAI_API_KEY', raising=False)
@@ -575,8 +582,8 @@ def test_azure_embed_documents_api_error(
 
 
 # --- AzureOpenAIEmbeddings from_client Tests ---
-def test_azure_openai_embeddings_from_client(mock_azure_clients_for_embeddings, monkeypatch):
-    from tinylcel.embeddings.openai import from_azure_client
+def test_azure_openai_embeddings_from_client(mock_azure_clients_for_embeddings: dict[str, Any]) -> None:
+    from tinylcel.providers.openai.embeddings import from_azure_client
 
     instance = from_azure_client(
         client=mock_azure_clients_for_embeddings['sync_client'],
@@ -595,7 +602,9 @@ def test_azure_openai_embeddings_from_client(mock_azure_clients_for_embeddings, 
     mock_azure_clients_for_embeddings['async_client'].copy.assert_called_once_with(timeout=30.0, max_retries=5)
 
 
-def test_azure_openai_embeddings_from_client_no_deployment_uses_model(mock_azure_clients_for_embeddings, monkeypatch):
+def test_azure_openai_embeddings_from_client_no_deployment_uses_model(
+    mock_azure_clients_for_embeddings: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Test from_client uses model if azure_deployment is None."""
     monkeypatch.setenv('AZURE_OPENAI_API_KEY', TEST_AZURE_API_KEY)  # Ensure API key for __post_init__
     monkeypatch.delenv('OPENAI_API_KEY', raising=False)

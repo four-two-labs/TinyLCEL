@@ -13,7 +13,7 @@ from openai import AsyncAzureOpenAI
 from openai._types import NOT_GIVEN
 
 from tinylcel.utils.auth import get_api_key
-from tinylcel.embeddings.base import BaseEmbeddings
+from tinylcel.embeddings import BaseEmbeddings
 
 
 @dataclass

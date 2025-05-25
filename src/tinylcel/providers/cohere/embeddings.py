@@ -8,7 +8,7 @@ import cohere  # type: ignore[import-not-found]
 from cohere.client import OMIT  # type: ignore[import-not-found]
 
 from tinylcel.utils.auth import get_api_key
-from tinylcel.embeddings.base import BaseEmbeddings
+from tinylcel.embeddings import BaseEmbeddings
 
 
 @dataclass

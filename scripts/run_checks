@@ -25,7 +25,7 @@ find_venv_bin_path() {
 apply_formatting() {
     # Check lint violations before formatting
     local pre_lint_output post_lint_output
-    pre_lint_output=$($VENV_BIN_PATH/ruff check --config "$PROJECT_ROOT/pyproject.toml" "$PROJECT_ROOT"/src 2>/dev/null)
+    pre_lint_output=$($VENV_BIN_PATH/ruff check --config "$PROJECT_ROOT/pyproject.toml" "$PROJECT_ROOT"/src 2>/dev/null || true)
     local pre_lint_count=0
     if [[ "$pre_lint_output" != *"All checks passed!"* ]]; then
         pre_lint_count=$(echo "$pre_lint_output" | wc -l | xargs)
@@ -45,7 +45,7 @@ apply_formatting() {
     fi
 
     # Check lint violations after formatting
-    post_lint_output=$($VENV_BIN_PATH/ruff check --config "$PROJECT_ROOT/pyproject.toml" "$PROJECT_ROOT"/src 2>/dev/null)
+    post_lint_output=$($VENV_BIN_PATH/ruff check --config "$PROJECT_ROOT/pyproject.toml" "$PROJECT_ROOT"/src 2>/dev/null || true)
     local post_lint_count=0
     if [[ "$post_lint_output" != *"All checks passed!"* ]]; then
         post_lint_count=$(echo "$post_lint_output" | wc -l | xargs)
@@ -75,21 +75,34 @@ apply_formatting() {
 }
 
 run_lint_checks() {
-    $VENV_BIN_PATH/ruff check --config "$PROJECT_ROOT/pyproject.toml" "$PROJECT_ROOT"/src
-    echo -e "${GREEN}OK${NC}"
+    if $VENV_BIN_PATH/ruff check --fix --unsafe-fixes --config "$PROJECT_ROOT/pyproject.toml" "$PROJECT_ROOT"/{src,tests}; then
+        echo -e "${GREEN}OK${NC}"
+    else
+        echo -e "${RED}Lint check failed${NC}"
+        exit 1
+    fi
     echo
 }
 
 run_type_checks() {
-    $VENV_BIN_PATH/mypy --config "$PROJECT_ROOT/pyproject.toml" "$PROJECT_ROOT"/{src,tests}
-    echo -e "${GREEN}OK${NC}"
+    if $VENV_BIN_PATH/mypy --config "$PROJECT_ROOT/pyproject.toml" "$PROJECT_ROOT"/{src,tests}; then
+        echo -e "${GREEN}OK${NC}"
+    else
+        echo -e "${RED}Type check failed${NC}"
+        exit 1
+    fi
     echo
 }
 
 run_tests() {
-    TEST_RESULT=$($VENV_BIN_PATH/pytest --cov=src --cov-report=term-missing -q "$PROJECT_ROOT/tests" 2>&1)
-    echo "$TEST_RESULT"
-    echo -e "${GREEN}OK${NC}"
+    if TEST_RESULT=$($VENV_BIN_PATH/pytest --cov=src --cov-report=term-missing -q "$PROJECT_ROOT/tests" 2>&1); then
+        echo "$TEST_RESULT"
+        echo -e "${GREEN}OK${NC}"
+    else
+        echo "$TEST_RESULT"
+        echo -e "${RED}Tests failed${NC}"
+        exit 1
+    fi
     echo
 }
 

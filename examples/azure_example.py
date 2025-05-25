@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 from tinylcel.prompts import ChatPromptTemplate
 from tinylcel.output_parsers import StrOutputParser
-from tinylcel.chat_models.openai import AzureChatOpenAI
+from tinylcel.providers.openai import AzureChatOpenAI
 
 
 async def main():

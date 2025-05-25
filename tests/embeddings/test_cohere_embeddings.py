@@ -1,6 +1,5 @@
 """Tests for Cohere embedding models."""
 
-from typing import List
 from typing import Literal
 from typing import Generator
 from unittest.mock import patch
@@ -12,7 +11,7 @@ import cohere  # type: ignore[import-not-found]
 import cohere.errors  # type: ignore[import-not-found]
 from cohere.client import OMIT  # type: ignore[import-not-found]
 
-from tinylcel.embeddings.cohere import CohereEmbeddings
+from tinylcel.providers.cohere import CohereEmbeddings
 
 
 @pytest.fixture
@@ -92,11 +91,8 @@ def test_cohere_embeddings_init_no_api_key_raises_value_error(
     """Test CohereEmbeddings raises ValueError if no API key is found."""
     mock_getenv.return_value = None  # No environment variable
 
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(ValueError, match='Cohere API key not found.*COHERE_API_KEY'):
         CohereEmbeddings()  # No api_key arg and no env var
-
-    assert 'Cohere API key not found' in str(excinfo.value)
-    assert 'COHERE_API_KEY' in str(excinfo.value)
     mock_cohere_client_v2.assert_not_called()
     mock_cohere_async_client_v2.assert_not_called()
 
@@ -117,14 +113,14 @@ def test_cohere_embeddings_init_with_base_url(
 
 
 # Tests for embed_documents
+@pytest.mark.usefixtures('mock_cohere_async_client_v2')
 def test_embed_documents_successful(
     mock_cohere_client_v2: MagicMock,
-    mock_cohere_async_client_v2: MagicMock,  # Not used but required by fixture chain
 ) -> None:
     """Test embed_documents successfully returns embeddings."""
     api_key: str = 'test_api_key'
-    texts: List[str] = ['doc1', 'doc2']
-    expected_embeddings: List[List[float]] = [[1.0, 2.0], [3.0, 4.0]]
+    texts: list[str] = ['doc1', 'doc2']
+    expected_embeddings: list[list[float]] = [[1.0, 2.0], [3.0, 4.0]]
 
     mock_client_instance = mock_cohere_client_v2.return_value
     mock_response = MagicMock()
@@ -133,7 +129,7 @@ def test_embed_documents_successful(
     mock_client_instance.embed.return_value = mock_response
 
     embeddings_model = CohereEmbeddings(api_key=api_key)
-    result: List[List[float]] = embeddings_model.embed_documents(texts)
+    result: list[list[float]] = embeddings_model.embed_documents(texts)
 
     assert result == expected_embeddings
     mock_client_instance.embed.assert_called_once_with(
@@ -146,17 +142,17 @@ def test_embed_documents_successful(
     )
 
 
+@pytest.mark.usefixtures('mock_cohere_async_client_v2')
 def test_embed_documents_with_custom_params(
     mock_cohere_client_v2: MagicMock,
-    mock_cohere_async_client_v2: MagicMock,
 ) -> None:
     """Test embed_documents with custom model, truncate, and dimensions."""
     api_key: str = 'test_api_key'
-    texts: List[str] = ['doc1']
+    texts: list[str] = ['doc1']
     custom_model: str = 'embed-multilingual-v3.0'
     custom_truncate: Literal['NONE', 'START', 'END'] = 'START'
     custom_dimensions: int = 1024
-    expected_embeddings: List[List[float]] = [[0.1, 0.2, 0.3]]
+    expected_embeddings: list[list[float]] = [[0.1, 0.2, 0.3]]
 
     mock_client_instance = mock_cohere_client_v2.return_value
     mock_response = MagicMock()
@@ -167,7 +163,7 @@ def test_embed_documents_with_custom_params(
     embeddings_model = CohereEmbeddings(
         api_key=api_key, model=custom_model, truncate=custom_truncate, dimensions=custom_dimensions
     )
-    result: List[List[float]] = embeddings_model.embed_documents(texts)
+    result: list[list[float]] = embeddings_model.embed_documents(texts)
 
     assert result == expected_embeddings
     mock_client_instance.embed.assert_called_once_with(
@@ -180,13 +176,13 @@ def test_embed_documents_with_custom_params(
     )
 
 
+@pytest.mark.usefixtures('mock_cohere_async_client_v2')
 def test_embed_documents_cohere_api_error(
     mock_cohere_client_v2: MagicMock,
-    mock_cohere_async_client_v2: MagicMock,
 ) -> None:
     """Test embed_documents raises CohereError on API failure."""
     api_key: str = 'test_api_key'
-    texts: List[str] = ['doc1']
+    texts: list[str] = ['doc1']
 
     mock_client_instance = mock_cohere_client_v2.return_value
     mock_client_instance.embed.side_effect = cohere.errors.InternalServerError(body={})
@@ -197,14 +193,14 @@ def test_embed_documents_cohere_api_error(
 
 
 # Tests for embed_query
+@pytest.mark.usefixtures('mock_cohere_async_client_v2')
 def test_embed_query_successful(
     mock_cohere_client_v2: MagicMock,
-    mock_cohere_async_client_v2: MagicMock,
 ) -> None:
     """Test embed_query successfully returns an embedding."""
     api_key: str = 'test_api_key'
     text: str = 'query1'
-    expected_embedding: List[float] = [1.0, 2.0, 3.0]
+    expected_embedding: list[float] = [1.0, 2.0, 3.0]
 
     mock_client_instance = mock_cohere_client_v2.return_value
     mock_response = MagicMock()
@@ -213,7 +209,7 @@ def test_embed_query_successful(
     mock_client_instance.embed.return_value = mock_response
 
     embeddings_model = CohereEmbeddings(api_key=api_key)
-    result: List[float] = embeddings_model.embed_query(text)
+    result: list[float] = embeddings_model.embed_query(text)
 
     assert result == expected_embedding
     mock_client_instance.embed.assert_called_once_with(
@@ -226,9 +222,9 @@ def test_embed_query_successful(
     )
 
 
+@pytest.mark.usefixtures('mock_cohere_async_client_v2')
 def test_embed_query_cohere_api_error(
     mock_cohere_client_v2: MagicMock,
-    mock_cohere_async_client_v2: MagicMock,
 ) -> None:
     """Test embed_query raises CohereError on API failure."""
     api_key: str = 'test_api_key'
@@ -244,14 +240,14 @@ def test_embed_query_cohere_api_error(
 
 # Tests for aembed_documents
 @pytest.mark.asyncio
+@pytest.mark.usefixtures('mock_cohere_client_v2')
 async def test_aembed_documents_successful(
-    mock_cohere_client_v2: MagicMock,  # Not used but required
     mock_cohere_async_client_v2: MagicMock,
 ) -> None:
     """Test aembed_documents successfully returns embeddings asynchronously."""
     api_key: str = 'test_api_key'
-    texts: List[str] = ['doc1_async', 'doc2_async']
-    expected_embeddings: List[List[float]] = [[5.0, 6.0], [7.0, 8.0]]
+    texts: list[str] = ['doc1_async', 'doc2_async']
+    expected_embeddings: list[list[float]] = [[5.0, 6.0], [7.0, 8.0]]
 
     mock_async_client_instance = mock_cohere_async_client_v2.return_value
     mock_response = MagicMock()
@@ -260,7 +256,7 @@ async def test_aembed_documents_successful(
     mock_async_client_instance.embed.return_value = mock_response
 
     embeddings_model = CohereEmbeddings(api_key=api_key)
-    result: List[List[float]] = await embeddings_model.aembed_documents(texts)
+    result: list[list[float]] = await embeddings_model.aembed_documents(texts)
 
     assert result == expected_embeddings
     mock_async_client_instance.embed.assert_awaited_once_with(
@@ -274,13 +270,13 @@ async def test_aembed_documents_successful(
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures('mock_cohere_client_v2')
 async def test_aembed_documents_cohere_api_error(
-    mock_cohere_client_v2: MagicMock,
     mock_cohere_async_client_v2: MagicMock,
 ) -> None:
     """Test aembed_documents raises CohereError on API failure asynchronously."""
     api_key: str = 'test_api_key'
-    texts: List[str] = ['doc1_async_fail']
+    texts: list[str] = ['doc1_async_fail']
 
     mock_async_client_instance = mock_cohere_async_client_v2.return_value
     mock_async_client_instance.embed.side_effect = cohere.errors.InternalServerError(body={})
@@ -292,14 +288,14 @@ async def test_aembed_documents_cohere_api_error(
 
 # Tests for aembed_query
 @pytest.mark.asyncio
+@pytest.mark.usefixtures('mock_cohere_client_v2')
 async def test_aembed_query_successful(
-    mock_cohere_client_v2: MagicMock,
     mock_cohere_async_client_v2: MagicMock,
 ) -> None:
     """Test aembed_query successfully returns an embedding asynchronously."""
     api_key: str = 'test_api_key'
     text: str = 'query1_async'
-    expected_embedding: List[float] = [9.0, 10.0]
+    expected_embedding: list[float] = [9.0, 10.0]
 
     mock_async_client_instance = mock_cohere_async_client_v2.return_value
     mock_response = MagicMock()
@@ -308,7 +304,7 @@ async def test_aembed_query_successful(
     mock_async_client_instance.embed.return_value = mock_response
 
     embeddings_model = CohereEmbeddings(api_key=api_key)
-    result: List[float] = await embeddings_model.aembed_query(text)
+    result: list[float] = await embeddings_model.aembed_query(text)
 
     assert result == expected_embedding
     mock_async_client_instance.embed.assert_awaited_once_with(
@@ -322,8 +318,8 @@ async def test_aembed_query_successful(
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures('mock_cohere_client_v2')
 async def test_aembed_query_cohere_api_error(
-    mock_cohere_client_v2: MagicMock,
     mock_cohere_async_client_v2: MagicMock,
 ) -> None:
     """Test aembed_query raises CohereError on API failure asynchronously."""

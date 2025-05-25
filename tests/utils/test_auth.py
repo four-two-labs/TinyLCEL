@@ -43,7 +43,7 @@ def test_get_api_key_raises_value_error_if_not_found(mock_getenv: MagicMock) -> 
     """Test that get_api_key raises ValueError if no key is found."""
     mock_getenv.return_value = None  # No environment variable
 
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(ValueError, match='API key not found') as excinfo:
         get_api_key(None, ENV_VAR_NAME, SERVICE_NAME)
 
     assert SERVICE_NAME in str(excinfo.value)
@@ -68,6 +68,6 @@ def test_get_api_key_empty_arg_uses_env(mock_getenv: MagicMock) -> None:
 def test_get_api_key_empty_arg_and_no_env_raises_error(mock_getenv: MagicMock) -> None:
     """Test ValueError if empty string arg and no env var."""
     mock_getenv.return_value = None
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match='API key not found'):
         get_api_key('', ENV_VAR_NAME, SERVICE_NAME)
     mock_getenv.assert_called_once_with(ENV_VAR_NAME)

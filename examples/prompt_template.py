@@ -3,7 +3,7 @@ import asyncio
 from dotenv import load_dotenv
 
 from tinylcel.prompts import ChatPromptTemplate
-from tinylcel.chat_models.openai import ChatOpenAI
+from tinylcel.providers.openai import ChatOpenAI
 from tinylcel.output_parsers import StrOutputParser
 
 
