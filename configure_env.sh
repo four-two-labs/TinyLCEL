@@ -1,42 +1,34 @@
-#!/bin/bash -e
+#!/bin/bash
+set -uo pipefail
 
-export PATH=$HOME/.local/bin:$PATH
+QUIET=false
+PATH=$HOME/.local/bin:$PATH
+PROJECT_ROOT=$(cd "$(dirname "$0")" && pwd)
+source $PROJECT_ROOT/scripts/shared
+[[ "$*" == *"--quiet"* ]] || [[ "$*" == *"-q"* ]] && QUIET=true
 
-GIT_ROOT=$(git rev-parse --show-toplevel)
-if [ $? -ne 0 ]; then
-    echo "Error: Not in a git repository"
-    exit 1
-fi
-
-# Create symbolic links for all hooks
-for hook in "${GIT_ROOT}/scripts/git-hooks/"*; do
-    ln -sf "$hook" "${GIT_ROOT}/.git/hooks/"
-done
-
-# Make hooks executable
-for hook in "${GIT_ROOT}/.git/hooks/"*; do
-    chmod +x "$hook"
-done
-
-# Check for pip3
-if [ ! "$(command -v pip3)" ]; then
-    echo "Error: pip3 is not installed"
-    exit 1
-fi
+# Check for system dependencies
+check_dependencies \
+    '{"curl": {"apt": "curl", "brew": "curl"}}'
 
 # Check for uv
 if [ ! "$(command -v uv)" ]; then
-    echo "uv not found, installing it..."
-    curl -LsSf https://astral.sh/uv/install.sh | sh -q
+    warning "UV not found, installing it..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    info "uv installed successfully!"
 fi
 
-# Check if .pyenv directory already exists
-if [ ! -d "${GIT_ROOT}/.pyenv" ]; then
-    uv venv -p 3.12 "${GIT_ROOT}/.pyenv"
+# Create virtual environment if it doesn't exist
+if [ ! -d "${PROJECT_ROOT}/.pyenv" ]; then
+    uv venv -q -p 3.12 "${PROJECT_ROOT}/.pyenv"
 fi
 
-source "${GIT_ROOT}/.pyenv/bin/activate"
-uv pip install -e "${GIT_ROOT}[dev,openai,cohere,image,pydantic]"
+source "${PROJECT_ROOT}/.pyenv/bin/activate"
+uv pip install -q -e "${PROJECT_ROOT}[dev,openai,cohere,image,pydantic]"
+info "${GREEN}✅ Environment configured successfully!${NC}"
+info
 
-echo "Environment configured successfully!"
-echo "To activate the environment, run: source ${GIT_ROOT}/.pyenv/bin/activate"
+info "To activate the environment, run either of the following:"
+info "  ${GREEN}source $0${NC}"
+info "  ${GREEN}source ${PROJECT_ROOT}/.venv/bin/activate${NC}"
+info

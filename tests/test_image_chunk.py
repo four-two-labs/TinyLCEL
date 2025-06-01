@@ -1,5 +1,3 @@
-import sys
-import importlib
 from typing import cast
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -99,22 +97,3 @@ def test_image_chunk_different_formats(tmp_path: Path, fmt: str, prefix: str) ->
     url = image_url_dict.get('url')
     assert isinstance(url, str)
     assert url.startswith(prefix)
-
-
-@pytest.mark.parametrize('missing_module', ['PIL', 'magic'])
-def test_missing_pillow_dependency(missing_module: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    module = 'tinylcel.messages.image_chunk'
-
-    # Simulate missing Pillow by removing PIL modules
-    monkeypatch.setitem(sys.modules, missing_module, None)
-
-    # Ensure module is not cached
-    if module in sys.modules:
-        del sys.modules[module]
-    with pytest.raises(ImportError) as excinfo:
-        importlib.import_module(module)
-
-    msg = str(excinfo.value)
-    assert 'please install' in msg.lower()
-    assert 'python-magic' in msg
-    assert 'pillow' in msg

@@ -1,6 +1,6 @@
 [project]
 name = 'tinylcel'
-version = '0.1.9'
+version = '0.1.10'
 description = 'A tiny implementation of LangChain Expression Language (LCEL)'
 authors = [
     { name = 'Ali Mosavian', email = "ali@42labs.ai" },
@@ -8,9 +8,11 @@ authors = [
 readme = 'README.md'
 requires-python = '>=3.12'
 
-dependencies = [    
+dependencies = [
+    "puremagic>=1.29,<2.0.0",
     'pyyaml>=6.0.2,<7.0.0',
     'types-pyyaml>=6.0.12,<7.0.0',
+    'pillow>=11.2.1,<12.0.0',
 ]
 
 
@@ -36,8 +38,7 @@ cohere = [
 ]
 
 image = [
-    'pillow>=11.2.1,<12.0.0',
-    'python-magic>=0.4.27,<0.5.0',
+    # pillow is now a main dependency
 ]
 
 pydantic = [
@@ -218,7 +219,3 @@ force_sort_within_sections = true
 sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 line_length = 119 
 
-[dependency-groups]
-dev = [
-    "radon>=6.0.1",
-]
