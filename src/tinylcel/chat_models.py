@@ -4,6 +4,8 @@ import abc
 from dataclasses import field
 from dataclasses import dataclass
 
+from pydantic import BaseModel
+
 from tinylcel.messages import AIMessage
 from tinylcel.runnable import RunnableBase
 from tinylcel.messages import MessagesInput
@@ -119,4 +121,78 @@ class BaseChatModel(RunnableBase[MessagesInput, AIMessage], abc.ABC):
             An awaitable resolving to an `AIMessage` representing the model's
             response.
         """
+        return await self._agenerate(input)
+
+    @abc.abstractmethod
+    def with_structured_output[T: BaseModel](self, schema: type[T]) -> 'StructuredBaseChatModel[T]':
+        """
+        Return a new runnable that outputs structured data using the given Pydantic schema.
+
+        This method creates a new runnable that combines this chat model with a
+        PydanticOutputParser to ensure the output conforms to the specified schema.
+        Subclasses may override this method to use provider-specific structured
+        output capabilities (e.g., OpenAI's response_format parameter).
+
+        Args:
+            schema: A Pydantic BaseModel class that defines the expected output structure.
+
+        Returns:
+            A new runnable that outputs instances of the specified Pydantic model.
+
+        Example:
+            ```python
+            from pydantic import BaseModel
+            from tinylcel.chat_models.openai import ChatOpenAI
+            from tinylcel.messages import HumanMessage
+
+
+            class Person(BaseModel):
+                name: str
+                age: int
+
+
+            model = ChatOpenAI()
+            structured_model = model.with_structured_output(Person)
+            result = structured_model.invoke([HumanMessage(content='Tell me about John who is 25 years old')])
+            # result is now a Person instance
+            print(result.name)  # "John"
+            print(result.age)  # 25
+            ```
+        """
+        ...
+
+
+@dataclass
+class StructuredBaseChatModel[T: BaseModel](BaseChatModel, RunnableBase[MessagesInput, T], abc.ABC):
+    """
+    Abstract base class for chat models that expose a chat interface and support structured output.
+
+    This class provides the core functionality for chat models within the
+    Tiny LangChain Expression Language (TinyLCEL) framework. It inherits
+    from `BaseChatModel`, defining the output type as a Pydantic model.
+    """
+
+    output_type: type[T] = field(default=None)  # type: ignore[assignment]
+
+    @abc.abstractmethod
+    def _generate(self, messages: MessagesInput) -> T:  # type: ignore[override]
+        """
+        Generate a response from the chat model.
+
+        This method takes a list of messages, calls the `_generate` method
+        implemented by the subclass, and returns the resulting AI message.
+        """
+        ...
+
+    @abc.abstractmethod
+    async def _agenerate(self, messages: MessagesInput) -> T:  # type: ignore[override]
+        """Generate a response from the chat model asynchronously."""
+        ...
+
+    def invoke(self, input: MessagesInput) -> T:  # type: ignore[override]
+        """Invoke the chat model synchronously."""
+        return self._generate(input)
+
+    async def ainvoke(self, input: MessagesInput) -> T:  # type: ignore[override]
+        """Invoke the chat model asynchronously."""
         return await self._agenerate(input)

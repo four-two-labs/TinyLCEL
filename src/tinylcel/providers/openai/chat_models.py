@@ -1,13 +1,13 @@
 """Implementation of a chat model using the OpenAI API."""
 
 from typing import Any
-from typing import TypeVar
 from dataclasses import field
 from dataclasses import dataclass
 
 import openai
 from openai import NOT_GIVEN
 from openai import AzureOpenAI
+from pydantic import BaseModel
 from openai._types import NotGiven
 from openai import AsyncAzureOpenAI
 
@@ -17,9 +17,7 @@ from tinylcel.chat_models import BaseChatModel
 from tinylcel.messages.base import BaseMessage
 from tinylcel.messages.base import MessagesInput
 from tinylcel.messages.base import MessageContentBlock
-
-# Added TypeVar for from_client method
-T = TypeVar('T')
+from tinylcel.chat_models import StructuredBaseChatModel
 
 
 @dataclass
@@ -190,6 +188,63 @@ class ChatOpenAI(BaseChatModel):
 
         return AIMessage(content=choice.message.content)
 
+    def with_structured_output[T: BaseModel](self, schema: type[T]) -> 'StructureChatOpenAI[T]':  # type: ignore[override]
+        """
+        Return a new ChatOpenAI instance that uses OpenAI's structured output feature.
+
+        This method leverages OpenAI's native structured output capabilities using
+        the beta.chat.completions.parse() method, which returns parsed Pydantic models
+        directly without requiring additional parsing steps.
+
+        Args:
+            schema: A Pydantic BaseModel class that defines the expected output structure.
+
+        Returns:
+            A new runnable that outputs instances of the specified Pydantic model
+            using OpenAI's structured output feature.
+
+        Example:
+            ```python
+            from pydantic import BaseModel
+            from tinylcel.chat_models.openai import ChatOpenAI
+            from tinylcel.messages import HumanMessage
+
+
+            class Person(BaseModel):
+                name: str
+                age: int
+                city: str
+
+
+            model = ChatOpenAI(model='gpt-4o-mini')
+            structured_model = model.with_structured_output(Person)
+
+            result = structured_model.invoke([HumanMessage(content='Tell me about John, a 25-year-old from NYC')])
+            # result is now a Person instance with guaranteed structure
+            print(result.name)  # "John"
+            print(result.age)  # 25
+            print(result.city)  # "NYC"
+            ```
+
+        Note:
+            This method requires OpenAI models that support structured outputs (e.g., gpt-4o-mini).
+            Uses OpenAI's beta.chat.completions.parse() for direct Pydantic model parsing.
+        """
+        # Create new instance that uses the parse method for structured output
+        return StructureChatOpenAI(
+            output_type=schema,
+            model=self.model,
+            api_key=self.api_key,
+            base_url=self.base_url,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
+            max_completion_tokens=self.max_completion_tokens,
+            max_retries=self.max_retries,
+            timeout=self.timeout,
+            _client=self._client,
+            _async_client=self._async_client,
+        )
+
 
 @dataclass
 class AzureChatOpenAI(ChatOpenAI):
@@ -307,3 +362,70 @@ def from_azure_client(  # noqa: PLR0913
         _client=client.copy(timeout=timeout, max_retries=max_retries),
         _async_client=async_client.copy(timeout=timeout, max_retries=max_retries),
     )
+
+
+@dataclass
+class StructureChatOpenAI[T: BaseModel](StructuredBaseChatModel[T], ChatOpenAI):
+    """
+    ChatOpenAI subclass that uses OpenAI's beta.chat.completions.parse() method.
+
+    This class inherits from ChatOpenAI and overrides the generation methods to
+    return Pydantic model instances directly instead of AIMessage objects.
+    """
+
+    def _generate(self, messages: MessagesInput) -> T:  # type: ignore[override]
+        """
+        Override to use OpenAI's parse method for structured output.
+
+        Args:
+            messages: A list of BaseMessage objects.
+
+        Returns:
+            A validated instance of the Pydantic model (not AIMessage).
+
+        Raises:
+            ValueError: If the API response is refused or parsing fails.
+            openai.APIError: If the OpenAI API returns an error.
+        """
+        message_dicts = [self._convert_message_to_dict(m) for m in messages]
+
+        response = self._client.responses.parse(
+            model=self.model,
+            input=message_dicts,  # type: ignore[arg-type]
+            text_format=self.output_type,
+            temperature=self.temperature,
+            max_output_tokens=self.max_completion_tokens,
+        )
+        if response.output_parsed is not None:
+            return response.output_parsed
+
+        raise ValueError('OpenAI error: Parsing failed')
+
+    async def _agenerate(self, messages: MessagesInput) -> T:  # type: ignore[override]
+        """
+        Override to use OpenAI's async parse method for structured output.
+
+        Args:
+            messages: A list of BaseMessage objects.
+
+        Returns:
+            An awaitable resolving to a validated instance of the Pydantic model.
+
+        Raises:
+            ValueError: If the API response is refused or parsing fails.
+            openai.APIError: If the OpenAI API returns an error.
+        """
+        message_dicts = [self._convert_message_to_dict(m) for m in messages]
+
+        response = await self._async_client.responses.parse(
+            model=self.model,
+            input=message_dicts,  # type: ignore[arg-type]
+            text_format=self.output_type,
+            temperature=self.temperature,
+            max_output_tokens=self.max_completion_tokens,
+        )
+
+        if response.output_parsed is not None:
+            return response.output_parsed
+
+        raise ValueError('OpenAI error: Parsing failed')

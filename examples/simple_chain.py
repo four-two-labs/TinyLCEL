@@ -7,12 +7,12 @@ from tinylcel.providers.openai import ChatOpenAI
 from tinylcel.output_parsers import StrOutputParser
 
 
-async def main():
-    load_dotenv() 
+async def main() -> None:
+    load_dotenv()
     llm = ChatOpenAI(model='gpt-4o-mini', temperature=0)
 
     chain = (
-        llm 
+        llm
         | StrOutputParser()
     )
 

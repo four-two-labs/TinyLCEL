@@ -13,6 +13,7 @@ from unittest.mock import MagicMock
 import openai
 import pytest
 from openai import NOT_GIVEN
+from pydantic import BaseModel
 from openai import DEFAULT_MAX_RETRIES
 
 from tinylcel.messages import AIMessage
@@ -22,6 +23,7 @@ from tinylcel.messages import MessagesInput
 from tinylcel.messages import SystemMessage
 from tinylcel.providers.openai import ChatOpenAI
 from tinylcel.providers.openai import AzureChatOpenAI
+from tinylcel.providers.openai.chat_models import StructureChatOpenAI
 
 
 # Helper dataclass for testing unknown roles
@@ -30,6 +32,22 @@ class SpecialRoleMessage(BaseMessage):
     """Special message type for testing non-standard roles."""
 
     role: str = field(default='special_role', init=False)
+
+
+# Test Pydantic models for structured output testing
+class Person(BaseModel):
+    """Test model for structured output."""
+
+    name: str
+    age: int
+    city: str
+
+
+class SimpleResponse(BaseModel):
+    """Simple test model for structured output."""
+
+    message: str
+    success: bool
 
 
 # Constants for Azure tests
@@ -149,6 +167,51 @@ def sample_messages_dict_openai_fmt() -> list[dict[str, str]]:
         {'role': 'system', 'content': 'You are a helpful assistant.'},
         {'role': 'user', 'content': 'What is the capital of France?'},
     ]
+
+
+@pytest.fixture
+def mock_structured_output_clients() -> Generator[dict[str, Any], None, None]:
+    """Fixture to mock openai clients for structured output (responses.parse)."""
+    # Mock sync client
+    mock_sync_client = MagicMock(spec=openai.OpenAI)
+    mock_sync_responses = MagicMock()
+    mock_sync_client.responses = mock_sync_responses
+
+    # Mock sync parse response
+    mock_sync_parse_response = MagicMock()
+    # Set up the parsed response - will be set by individual tests
+    mock_sync_parse_response.output_parsed = None
+    mock_sync_responses.parse.return_value = mock_sync_parse_response
+
+    # Mock async client
+    mock_async_client = MagicMock()
+    mock_async_responses = MagicMock()
+    mock_async_client.responses = mock_async_responses
+
+    # Mock async parse response
+    mock_async_parse_response = MagicMock()
+    mock_async_parse_response.output_parsed = None
+    mock_async_parse_method = AsyncMock(return_value=mock_async_parse_response)
+    mock_async_responses.parse = mock_async_parse_method
+
+    with (
+        patch(
+            'tinylcel.providers.openai.chat_models.openai.OpenAI', return_value=mock_sync_client
+        ) as mock_sync_constructor,
+        patch(
+            'tinylcel.providers.openai.chat_models.openai.AsyncOpenAI', return_value=mock_async_client
+        ) as mock_async_constructor,
+    ):
+        yield {
+            'sync_client': mock_sync_client,
+            'async_client': mock_async_client,
+            'sync_parse': mock_sync_responses.parse,
+            'async_parse': mock_async_parse_method,
+            'sync_parse_response': mock_sync_parse_response,
+            'async_parse_response': mock_async_parse_response,
+            'sync_constructor': mock_sync_constructor,
+            'async_constructor': mock_async_constructor,
+        }
 
 
 @pytest.fixture(autouse=True)
@@ -927,3 +990,309 @@ def test_azure_chatopenai_from_client_success(mock_azure_clients: dict[str, Any]
     assert instance.timeout == 30
     mock_azure_clients['sync_client'].copy.assert_called_once_with(timeout=30, max_retries=3)
     mock_azure_clients['async_client'].copy.assert_called_once_with(timeout=30, max_retries=3)
+
+
+# --- Tests for Structured Output --- #
+
+
+@pytest.mark.usefixtures('mock_openai_clients')
+def test_base_chat_model_with_structured_output_returns_sequence() -> None:
+    """Test BaseChatModel.with_structured_output is abstract - subclasses must implement it."""
+    # Test that the base implementation is abstract by checking that ChatOpenAI overrides it
+    model = ChatOpenAI()
+
+    # ChatOpenAI should override the abstract method and return StructureChatOpenAI
+    structured_model = model.with_structured_output(Person)
+    assert isinstance(structured_model, StructureChatOpenAI)
+    assert structured_model.output_type is Person
+
+
+@pytest.mark.usefixtures('mock_openai_clients')
+def test_chatopenai_with_structured_output_returns_structured_model() -> None:
+    """Test ChatOpenAI.with_structured_output returns StructureChatOpenAI instance."""
+    model = ChatOpenAI(api_key='test-key', model='gpt-4o-mini', temperature=0.7, max_tokens=100)
+    structured_model = model.with_structured_output(Person)
+
+    # Should return StructureChatOpenAI
+    assert isinstance(structured_model, StructureChatOpenAI)
+
+    # Should inherit all settings from parent model
+    assert structured_model.model == 'gpt-4o-mini'
+    assert structured_model.api_key == 'test-key'
+    assert structured_model.temperature == 0.7
+    assert structured_model.max_tokens == 100
+    assert structured_model.output_type is Person
+
+
+@pytest.mark.usefixtures('mock_openai_clients')
+def test_chatopenai_with_structured_output_copies_all_settings() -> None:
+    """Test that with_structured_output copies all settings from parent model."""
+    model = ChatOpenAI(
+        api_key='test-key',
+        model='gpt-4',
+        temperature=0.2,
+        max_tokens=50,
+        max_completion_tokens=25,
+        max_retries=5,
+        timeout=30,
+        base_url='http://localhost:1234',
+    )
+    structured_model = model.with_structured_output(SimpleResponse)
+
+    assert structured_model.api_key == 'test-key'
+    assert structured_model.model == 'gpt-4'
+    assert structured_model.temperature == 0.2
+    assert structured_model.max_tokens == 50
+    assert structured_model.max_completion_tokens == 25
+    assert structured_model.max_retries == 5
+    assert structured_model.timeout == 30
+    assert structured_model.base_url == 'http://localhost:1234'
+    assert structured_model.output_type is SimpleResponse
+
+
+def test_structured_chat_openai_generate_success(
+    mock_structured_output_clients: dict[str, Any],
+    sample_messages: MessagesInput,
+    sample_messages_dict_openai_fmt: list[dict[str, str]],
+) -> None:
+    """Test StructureChatOpenAI._generate calls beta.chat.completions.parse and returns parsed model."""
+    # Set up parsed response
+    test_person = Person(name='John', age=25, city='NYC')
+    mock_structured_output_clients['sync_parse_response'].output_parsed = test_person
+
+    base_model = ChatOpenAI(model='gpt-4o-mini', api_key='test-key')
+    structured_model: StructureChatOpenAI[Person] = base_model.with_structured_output(Person)
+    result = structured_model._generate(sample_messages)
+
+    # Should return the parsed Pydantic model directly
+    assert result is test_person
+    assert isinstance(result, Person)
+    assert result.name == 'John'
+    assert result.age == 25
+    assert result.city == 'NYC'
+
+    # Should call responses.parse with correct parameters
+    mock_structured_output_clients['sync_parse'].assert_called_once_with(
+        model='gpt-4o-mini',
+        input=sample_messages_dict_openai_fmt,
+        text_format=Person,
+        temperature=NOT_GIVEN,
+        max_output_tokens=NOT_GIVEN,
+    )
+
+
+@pytest.mark.asyncio
+async def test_structured_chat_openai_agenerate_success(
+    mock_structured_output_clients: dict[str, Any],
+    sample_messages: MessagesInput,
+    sample_messages_dict_openai_fmt: list[dict[str, str]],
+) -> None:
+    """Test StructureChatOpenAI._agenerate calls async beta.chat.completions.parse and returns parsed model."""
+    # Set up parsed response
+    test_response = SimpleResponse(message='Success', success=True)
+    mock_structured_output_clients['async_parse_response'].output_parsed = test_response
+
+    base_model = ChatOpenAI(model='gpt-4o-mini', api_key='test-key', temperature=0.5)
+    structured_model: StructureChatOpenAI[SimpleResponse] = base_model.with_structured_output(SimpleResponse)
+    result = await structured_model._agenerate(sample_messages)
+
+    # Should return the parsed Pydantic model directly
+    assert result is test_response
+    assert isinstance(result, SimpleResponse)
+    assert result.message == 'Success'
+    assert result.success is True
+
+    # Should call async responses.parse with correct parameters
+    mock_structured_output_clients['async_parse'].assert_awaited_once_with(
+        model='gpt-4o-mini',
+        input=sample_messages_dict_openai_fmt,
+        text_format=SimpleResponse,
+        temperature=0.5,
+        max_output_tokens=NOT_GIVEN,
+    )
+
+
+def test_structured_chat_openai_generate_with_all_params(
+    mock_structured_output_clients: dict[str, Any],
+    sample_messages: MessagesInput,
+    sample_messages_dict_openai_fmt: list[dict[str, str]],
+) -> None:
+    """Test StructureChatOpenAI._generate passes all parameters correctly."""
+    test_person = Person(name='Jane', age=30, city='SF')
+    mock_structured_output_clients['sync_parse_response'].output_parsed = test_person
+
+    base_model = ChatOpenAI(
+        model='gpt-4',
+        api_key='test-key',
+        temperature=0.2,
+        max_tokens=100,
+        max_completion_tokens=50,
+    )
+    structured_model: StructureChatOpenAI[Person] = base_model.with_structured_output(Person)
+    result = structured_model._generate(sample_messages)
+
+    assert result is test_person
+
+    mock_structured_output_clients['sync_parse'].assert_called_once_with(
+        model='gpt-4',
+        input=sample_messages_dict_openai_fmt,
+        text_format=Person,
+        temperature=0.2,
+        max_output_tokens=50,
+    )
+
+
+def test_structured_chat_openai_generate_refusal_error(
+    mock_structured_output_clients: dict[str, Any], sample_messages: MessagesInput
+) -> None:
+    """Test StructureChatOpenAI._generate raises ValueError on parsing failure."""
+    # Set up parsing failure response
+    mock_structured_output_clients['sync_parse_response'].output_parsed = None
+
+    base_model = ChatOpenAI(model='gpt-4o-mini', api_key='test-key')
+    structured_model: StructureChatOpenAI[Person] = base_model.with_structured_output(Person)
+
+    with pytest.raises(ValueError, match='OpenAI error: Parsing failed'):
+        structured_model._generate(sample_messages)
+
+
+@pytest.mark.asyncio
+async def test_structured_chat_openai_agenerate_refusal_error(
+    mock_structured_output_clients: dict[str, Any], sample_messages: MessagesInput
+) -> None:
+    """Test StructureChatOpenAI._agenerate raises ValueError on parsing failure."""
+    # Set up parsing failure response
+    mock_structured_output_clients['async_parse_response'].output_parsed = None
+
+    base_model = ChatOpenAI(model='gpt-4o-mini', api_key='test-key')
+    structured_model: StructureChatOpenAI[SimpleResponse] = base_model.with_structured_output(SimpleResponse)
+
+    with pytest.raises(ValueError, match='OpenAI error: Parsing failed'):
+        await structured_model._agenerate(sample_messages)
+
+
+def test_structured_chat_openai_generate_parsing_failure(
+    mock_structured_output_clients: dict[str, Any], sample_messages: MessagesInput
+) -> None:
+    """Test StructureChatOpenAI._generate raises ValueError when output_parsed is None."""
+    # Set up response with None
+    mock_structured_output_clients['sync_parse_response'].output_parsed = None
+
+    base_model = ChatOpenAI(model='gpt-4o-mini', api_key='test-key')
+    structured_model: StructureChatOpenAI[Person] = base_model.with_structured_output(Person)
+
+    with pytest.raises(ValueError, match='OpenAI error: Parsing failed'):
+        structured_model._generate(sample_messages)
+
+
+def test_structured_chat_openai_generate_api_error(
+    mock_structured_output_clients: dict[str, Any], sample_messages: MessagesInput
+) -> None:
+    """Test StructureChatOpenAI._generate propagates OpenAI API errors."""
+    mock_structured_output_clients['sync_parse'].side_effect = openai.APIError('API Failed', request=Mock(), body=None)
+
+    base_model = ChatOpenAI(model='gpt-4o-mini', api_key='test-key')
+    structured_model: StructureChatOpenAI[Person] = base_model.with_structured_output(Person)
+
+    with pytest.raises(openai.APIError, match='API Failed'):
+        structured_model._generate(sample_messages)
+
+
+@pytest.mark.asyncio
+async def test_structured_chat_openai_agenerate_api_error(
+    mock_structured_output_clients: dict[str, Any], sample_messages: MessagesInput
+) -> None:
+    """Test StructureChatOpenAI._agenerate propagates OpenAI API errors."""
+    mock_structured_output_clients['async_parse'].side_effect = openai.APIError(
+        'Async API Failed', request=Mock(), body=None
+    )
+
+    base_model = ChatOpenAI(model='gpt-4o-mini', api_key='test-key')
+    structured_model: StructureChatOpenAI[SimpleResponse] = base_model.with_structured_output(SimpleResponse)
+
+    with pytest.raises(openai.APIError, match='Async API Failed'):
+        await structured_model._agenerate(sample_messages)
+
+
+def test_structured_chat_openai_invoke_success(
+    mock_structured_output_clients: dict[str, Any], sample_messages: MessagesInput
+) -> None:
+    """Test StructureChatOpenAI.invoke returns parsed model directly."""
+    test_person = Person(name='Alice', age=28, city='Boston')
+    mock_structured_output_clients['sync_parse_response'].output_parsed = test_person
+
+    base_model = ChatOpenAI(model='gpt-4o-mini', api_key='test-key')
+    structured_model: StructureChatOpenAI[Person] = base_model.with_structured_output(Person)
+    result = structured_model.invoke(sample_messages)
+
+    # invoke should return the parsed model directly, not an AIMessage
+    assert result is test_person
+    assert isinstance(result, Person)
+    assert not isinstance(result, AIMessage)
+
+
+@pytest.mark.asyncio
+async def test_structured_chat_openai_ainvoke_success(
+    mock_structured_output_clients: dict[str, Any], sample_messages: MessagesInput
+) -> None:
+    """Test StructureChatOpenAI.ainvoke returns parsed model directly."""
+    test_response = SimpleResponse(message='Done', success=True)
+    mock_structured_output_clients['async_parse_response'].output_parsed = test_response
+
+    base_model = ChatOpenAI(model='gpt-4o-mini', api_key='test-key')
+    structured_model: StructureChatOpenAI[SimpleResponse] = base_model.with_structured_output(SimpleResponse)
+    result = await structured_model.ainvoke(sample_messages)
+
+    # ainvoke should return the parsed model directly, not an AIMessage
+    assert result is test_response
+    assert isinstance(result, SimpleResponse)
+    assert not isinstance(result, AIMessage)
+
+
+def test_structured_chat_openai_batch_success(
+    mock_structured_output_clients: dict[str, Any], sample_messages: MessagesInput
+) -> None:
+    """Test StructureChatOpenAI.batch returns multiple parsed models."""
+    test_person1 = Person(name='Bob', age=35, city='Seattle')
+    test_person2 = Person(name='Carol', age=42, city='Austin')
+
+    # Set up multiple responses
+    mock_structured_output_clients['sync_parse'].side_effect = [
+        MagicMock(output_parsed=test_person1),
+        MagicMock(output_parsed=test_person2),
+    ]
+
+    base_model = ChatOpenAI(model='gpt-4o-mini', api_key='test-key')
+    structured_model: StructureChatOpenAI[Person] = base_model.with_structured_output(Person)
+    results = structured_model.batch([sample_messages, sample_messages])
+
+    assert len(results) == 2
+    assert results[0] is test_person1
+    assert results[1] is test_person2
+    assert all(isinstance(r, Person) for r in results)
+    assert mock_structured_output_clients['sync_parse'].call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_structured_chat_openai_abatch_success(
+    mock_structured_output_clients: dict[str, Any], sample_messages: MessagesInput
+) -> None:
+    """Test StructureChatOpenAI.abatch returns multiple parsed models."""
+    test_response1 = SimpleResponse(message='First', success=True)
+    test_response2 = SimpleResponse(message='Second', success=False)
+
+    # Set up multiple async responses
+    mock_structured_output_clients['async_parse'].side_effect = [
+        MagicMock(output_parsed=test_response1),
+        MagicMock(output_parsed=test_response2),
+    ]
+
+    base_model = ChatOpenAI(model='gpt-4o-mini', api_key='test-key')
+    structured_model: StructureChatOpenAI[SimpleResponse] = base_model.with_structured_output(SimpleResponse)
+    results = await structured_model.abatch([sample_messages, sample_messages])
+
+    assert len(results) == 2
+    assert results[0] is test_response1
+    assert results[1] is test_response2
+    assert all(isinstance(r, SimpleResponse) for r in results)
+    assert mock_structured_output_clients['async_parse'].await_count == 2

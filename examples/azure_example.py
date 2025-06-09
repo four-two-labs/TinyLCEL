@@ -8,8 +8,8 @@ from tinylcel.output_parsers import StrOutputParser
 from tinylcel.providers.openai import AzureChatOpenAI
 
 
-async def main():
-    load_dotenv()    
+async def main() -> None:
+    load_dotenv()
     llm = AzureChatOpenAI(
         model=os.getenv('AZURE_OPENAI_MODEL'),
         api_key=os.getenv('AZURE_OPENAI_APIKEY'),
@@ -24,7 +24,7 @@ async def main():
             ('system', 'You are a helpful assistant that can answer questions.'),
             ('human', 'Tell me a single interesting fact about {topic}.'),
         ])
-        | llm 
+        | llm
         | StrOutputParser()
     )
 

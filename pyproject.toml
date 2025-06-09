@@ -1,6 +1,6 @@
 [project]
 name = 'tinylcel'
-version = '0.1.10'
+version = '0.1.11'
 description = 'A tiny implementation of LangChain Expression Language (LCEL)'
 authors = [
     { name = 'Ali Mosavian', email = "ali@42labs.ai" },
@@ -13,6 +13,7 @@ dependencies = [
     'pyyaml>=6.0.2,<7.0.0',
     'types-pyyaml>=6.0.12,<7.0.0',
     'pillow>=11.2.1,<12.0.0',
+    'pydantic>=2.10.6,<3.0.0',
 ]
 
 
@@ -35,14 +36,6 @@ openai = [
 
 cohere = [
     'cohere>=5.0.0,<6.0.0'
-]
-
-image = [
-    # pillow is now a main dependency
-]
-
-pydantic = [
-    'pydantic>=2.10.6,<3.0.0',
 ]
 
 
