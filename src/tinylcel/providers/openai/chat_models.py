@@ -1,6 +1,7 @@
 """Implementation of a chat model using the OpenAI API."""
 
 from typing import Any
+from typing import Callable
 from dataclasses import field
 from dataclasses import dataclass
 
@@ -18,6 +19,26 @@ from tinylcel.messages.base import BaseMessage
 from tinylcel.messages.base import MessagesInput
 from tinylcel.messages.base import MessageContentBlock
 from tinylcel.chat_models import StructuredBaseChatModel
+
+
+def _message_to_dict(
+    message: BaseMessage | dict[str, str | list[MessageContentBlock]],
+) -> dict[str, str | list[MessageContentBlock]]:
+    match message:
+        case BaseMessage(role='human', content=content) | {'role': 'human', 'content': content}:
+            role = 'user'
+        case BaseMessage(role='ai', content=content) | {'role': 'ai', 'content': content}:
+            role = 'assistant'
+        case BaseMessage(role='system', content=content) | {'role': 'system', 'content': content}:
+            role = 'system'
+        case _:
+            raise ValueError(f'Unsupported message type: {message!r}')
+
+    return {'role': role, 'content': content}
+
+
+def _to_openai_format(messages: MessagesInput) -> list[dict[str, str | list[MessageContentBlock]]]:
+    return [_message_to_dict(m) for m in messages]
 
 
 @dataclass
@@ -78,13 +99,6 @@ class ChatOpenAI(BaseChatModel):
     _async_client: openai.AsyncOpenAI = field(init=True, repr=False, default=None)  # type: ignore[assignment]
 
     def __post_init__(self) -> None:
-        """Initializes the synchronous and asynchronous OpenAI clients.
-
-        Retrieves the API key and configures clients with retries, timeout, and base_url.
-
-        Raises:
-            ValueError: If the OpenAI API key cannot be resolved.
-        """
         resolved_api_key = get_api_key(self.api_key, 'OPENAI_API_KEY', 'OpenAI')
 
         client_kwargs: dict[str, Any] = {
@@ -98,51 +112,10 @@ class ChatOpenAI(BaseChatModel):
         self._client = self._client or openai.OpenAI(**client_kwargs)  # type: ignore[assignment]
         self._async_client = self._async_client or openai.AsyncOpenAI(**client_kwargs)  # type: ignore[assignment]
 
-    def _convert_message_to_dict(self, message: BaseMessage) -> dict[str, str | list[MessageContentBlock]]:
-        """Convert a TinyLCEL message to the OpenAI API dictionary format.
-
-        Maps internal roles (`human`, `ai`, `system`) to the roles expected
-        by the OpenAI API (`user`, `assistant`, `system`).
-
-        Args:
-            message: A `BaseMessage` (or subclass) instance.
-
-        Returns:
-            A dictionary with 'role' and 'content' keys formatted for the API.
-        """
-        match message.role:
-            case 'human':
-                role = 'user'
-            case 'ai':
-                role = 'assistant'
-            case 'system':
-                role = 'system'
-            case _:
-                # Or raise an error for unsupported roles?
-                role = message.role  # Pass through unknown roles for now
-
-        return {'role': role, 'content': message.content}
-
     def _generate(self, messages: MessagesInput) -> AIMessage:
-        """Synchronous generation using the OpenAI Chat Completion API.
-
-        Formats the input messages, calls the `create` method of the synchronous
-        OpenAI client, and returns the response content as an `AIMessage`.
-
-        Args:
-            messages: A list of `BaseMessage` objects.
-
-        Returns:
-            An `AIMessage` containing the first choice's message content.
-
-        Raises:
-            ValueError: If the API response content is None.
-            openai.APIError: If the OpenAI API returns an error.
-        """
-        message_dicts = [self._convert_message_to_dict(m) for m in messages]
         api_kwargs: dict[str, Any] = {
             'model': self.model,
-            'messages': message_dicts,
+            'messages': _to_openai_format(messages),
             'temperature': self.temperature,
             'max_tokens': self.max_tokens,
             'max_completion_tokens': self.max_completion_tokens,
@@ -156,26 +129,9 @@ class ChatOpenAI(BaseChatModel):
         return AIMessage(content=choice.message.content)
 
     async def _agenerate(self, messages: MessagesInput) -> AIMessage:
-        """Asynchronous generation using the OpenAI Chat Completion API.
-
-        Formats the input messages, calls the `create` method of the asynchronous
-        OpenAI client, and returns the response content as an `AIMessage`.
-
-        Args:
-            messages: A list of `BaseMessage` objects.
-
-        Returns:
-            An awaitable resolving to an `AIMessage` containing the first choice's
-            message content.
-
-        Raises:
-            ValueError: If the API response content is None.
-            openai.APIError: If the OpenAI API returns an error.
-        """
-        message_dicts = [self._convert_message_to_dict(m) for m in messages]
         api_kwargs: dict[str, Any] = {
             'model': self.model,
-            'messages': message_dicts,
+            'messages': _to_openai_format(messages),
             'temperature': self.temperature,
             'max_tokens': self.max_tokens,
             'max_completion_tokens': self.max_completion_tokens,
@@ -188,49 +144,7 @@ class ChatOpenAI(BaseChatModel):
 
         return AIMessage(content=choice.message.content)
 
-    def with_structured_output[T: BaseModel](self, schema: type[T]) -> 'StructureChatOpenAI[T]':  # type: ignore[override]
-        """
-        Return a new ChatOpenAI instance that uses OpenAI's structured output feature.
-
-        This method leverages OpenAI's native structured output capabilities using
-        the beta.chat.completions.parse() method, which returns parsed Pydantic models
-        directly without requiring additional parsing steps.
-
-        Args:
-            schema: A Pydantic BaseModel class that defines the expected output structure.
-
-        Returns:
-            A new runnable that outputs instances of the specified Pydantic model
-            using OpenAI's structured output feature.
-
-        Example:
-            ```python
-            from pydantic import BaseModel
-            from tinylcel.chat_models.openai import ChatOpenAI
-            from tinylcel.messages import HumanMessage
-
-
-            class Person(BaseModel):
-                name: str
-                age: int
-                city: str
-
-
-            model = ChatOpenAI(model='gpt-4o-mini')
-            structured_model = model.with_structured_output(Person)
-
-            result = structured_model.invoke([HumanMessage(content='Tell me about John, a 25-year-old from NYC')])
-            # result is now a Person instance with guaranteed structure
-            print(result.name)  # "John"
-            print(result.age)  # 25
-            print(result.city)  # "NYC"
-            ```
-
-        Note:
-            This method requires OpenAI models that support structured outputs (e.g., gpt-4o-mini).
-            Uses OpenAI's beta.chat.completions.parse() for direct Pydantic model parsing.
-        """
-        # Create new instance that uses the parse method for structured output
+    def with_structured_output[T: BaseModel](self, schema: type[T]) -> 'StructureChatOpenAI[T]':  # noqa: D102
         return StructureChatOpenAI(
             output_type=schema,
             model=self.model,
@@ -293,28 +207,69 @@ class AzureChatOpenAI(ChatOpenAI):
     azure_endpoint: str = field(default='', repr=True)
     api_version: str | None = field(default=None, repr=True)
     azure_deployment: str | None = field(default=None, repr=True)
+    azure_ad_token: str | None = field(default=None, repr=False)
+    azure_ad_token_provider: Callable[[], str] | None = field(default=None, repr=True)
 
     _client: AzureOpenAI = field(init=True, repr=False, default=None)  # type: ignore
     _async_client: AsyncAzureOpenAI = field(init=True, repr=False, default=None)  # type: ignore
 
     def __post_init__(self) -> None:
-        """Initializes the Azure OpenAI clients."""
-        resolved_api_key = get_api_key(self.api_key, 'AZURE_OPENAI_API_KEY', 'Azure OpenAI')
+        api_key = None
+        if self.azure_ad_token is None and self.azure_ad_token_provider is None:
+            api_key = get_api_key(self.api_key, 'AZURE_OPENAI_API_KEY', 'Azure OpenAI')
+
         client_kwargs_azure: dict[str, Any] = {
-            'api_key': resolved_api_key,
-            'azure_endpoint': self.azure_endpoint,
-            'api_version': self.api_version,
+            'api_key': api_key,
             'max_retries': self.max_retries,
             'timeout': self.timeout,
+            'api_version': self.api_version,
+            'azure_endpoint': self.azure_endpoint,
+            'azure_ad_token': self.azure_ad_token,
+            'azure_ad_token_provider': self.azure_ad_token_provider,
         }
         self._client = self._client or AzureOpenAI(**client_kwargs_azure)  # type: ignore
         self._async_client = self._async_client or AsyncAzureOpenAI(**client_kwargs_azure)  # type: ignore
         self.model = self.model or self.azure_deployment  # type: ignore
 
 
-def from_client(  # noqa: PLR0913
-    client: openai.OpenAI,
-    async_client: openai.AsyncOpenAI,
+@dataclass
+class StructureChatOpenAI[T: BaseModel](StructuredBaseChatModel[T], ChatOpenAI):  # noqa: D101
+    _client: openai.OpenAI | AzureOpenAI = field(init=True, repr=False, default=None)  # type: ignore[assignment]
+    _async_client: openai.AsyncOpenAI | AsyncAzureOpenAI = field(init=True, repr=False, default=None)  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        pass
+
+    def _generate(self, messages: MessagesInput) -> T:  # type: ignore[override]
+        response = self._client.beta.chat.completions.parse(
+            model=self.model,
+            messages=_to_openai_format(messages),  # type: ignore[arg-type]
+            response_format=self.output_type,
+            temperature=self.temperature,
+            max_completion_tokens=self.max_completion_tokens,
+        )
+        if response.choices[0].message.parsed is not None:
+            return response.choices[0].message.parsed
+
+        raise ValueError('OpenAI error: Parsing failed')
+
+    async def _agenerate(self, messages: MessagesInput) -> T:  # type: ignore[override]
+        response = await self._async_client.beta.chat.completions.parse(
+            model=self.model,
+            messages=_to_openai_format(messages),  # type: ignore[arg-type]
+            response_format=self.output_type,
+            temperature=self.temperature,
+            max_completion_tokens=self.max_completion_tokens,
+        )
+
+        if response.choices[0].message.parsed is not None:
+            return response.choices[0].message.parsed
+
+        raise ValueError('OpenAI error: Parsing failed')
+
+
+def from_client(  # noqa: D103, PLR0913
+    client: openai.OpenAI | openai.AsyncOpenAI,
     model: str,
     temperature: float | NotGiven = NOT_GIVEN,
     max_tokens: int | NotGiven = NOT_GIVEN,
@@ -322,110 +277,40 @@ def from_client(  # noqa: PLR0913
     max_retries: int = openai.DEFAULT_MAX_RETRIES,
     timeout: int | NotGiven = NOT_GIVEN,
 ) -> ChatOpenAI:
-    """Create a ChatOpenAI instance from pre-configured clients."""
+    client_kwargs = {k: v for k, v in client.__dict__.items() if k.startswith(('api_key', 'base_url'))}
+
     return ChatOpenAI(
         model=model,
-        api_key='not_used_with_from_client',
-        base_url=None,
+        **client_kwargs,
         temperature=temperature,
         max_tokens=max_tokens,
         max_completion_tokens=max_completion_tokens,
         max_retries=max_retries,
         timeout=timeout,
-        _client=client.copy(timeout=timeout, max_retries=max_retries),
-        _async_client=async_client.copy(timeout=timeout, max_retries=max_retries),
     )
 
 
-def from_azure_client(  # noqa: PLR0913
-    client: openai.AzureOpenAI,
-    async_client: openai.AsyncAzureOpenAI,
-    model: str,
+def from_azure_client(  # noqa: D103, PLR0913
+    client: openai.AzureOpenAI | openai.AsyncAzureOpenAI,
+    model: str | None = None,
     temperature: float | NotGiven = NOT_GIVEN,
     max_tokens: int | NotGiven = NOT_GIVEN,
     max_completion_tokens: int | NotGiven = NOT_GIVEN,
     max_retries: int = openai.DEFAULT_MAX_RETRIES,
     timeout: int | NotGiven = NOT_GIVEN,
 ) -> AzureChatOpenAI:
-    """Create an AzureChatOpenAI instance from pre-configured Azure clients."""
+    client_kwargs = {
+        k.replace('_azure_', 'azure_'): (str(v) if v is not None and not callable(v) else v)
+        for k, v in client.__dict__.items()
+        if k.startswith(('api_key', '_azure'))
+    }
+
     return AzureChatOpenAI(
-        model=model,
+        model=model or client_kwargs['azure_deployment'],  # type: ignore[arg-type]
+        **client_kwargs,  # type: ignore[arg-type]
         temperature=temperature,
         max_tokens=max_tokens,
         max_completion_tokens=max_completion_tokens,
         max_retries=max_retries,
         timeout=timeout,
-        api_key='not_used_with_from_azure_client',
-        azure_endpoint='placeholder_from_azure_client',
-        api_version='placeholder_from_azure_client',
-        azure_deployment='placeholder_from_azure_client',
-        _client=client.copy(timeout=timeout, max_retries=max_retries),
-        _async_client=async_client.copy(timeout=timeout, max_retries=max_retries),
     )
-
-
-@dataclass
-class StructureChatOpenAI[T: BaseModel](StructuredBaseChatModel[T], ChatOpenAI):
-    """
-    ChatOpenAI subclass that uses OpenAI's beta.chat.completions.parse() method.
-
-    This class inherits from ChatOpenAI and overrides the generation methods to
-    return Pydantic model instances directly instead of AIMessage objects.
-    """
-
-    def _generate(self, messages: MessagesInput) -> T:  # type: ignore[override]
-        """
-        Override to use OpenAI's parse method for structured output.
-
-        Args:
-            messages: A list of BaseMessage objects.
-
-        Returns:
-            A validated instance of the Pydantic model (not AIMessage).
-
-        Raises:
-            ValueError: If the API response is refused or parsing fails.
-            openai.APIError: If the OpenAI API returns an error.
-        """
-        message_dicts = [self._convert_message_to_dict(m) for m in messages]
-
-        response = self._client.responses.parse(
-            model=self.model,
-            input=message_dicts,  # type: ignore[arg-type]
-            text_format=self.output_type,
-            temperature=self.temperature,
-            max_output_tokens=self.max_completion_tokens,
-        )
-        if response.output_parsed is not None:
-            return response.output_parsed
-
-        raise ValueError('OpenAI error: Parsing failed')
-
-    async def _agenerate(self, messages: MessagesInput) -> T:  # type: ignore[override]
-        """
-        Override to use OpenAI's async parse method for structured output.
-
-        Args:
-            messages: A list of BaseMessage objects.
-
-        Returns:
-            An awaitable resolving to a validated instance of the Pydantic model.
-
-        Raises:
-            ValueError: If the API response is refused or parsing fails.
-            openai.APIError: If the OpenAI API returns an error.
-        """
-        message_dicts = [self._convert_message_to_dict(m) for m in messages]
-
-        response = await self._async_client.responses.parse(
-            model=self.model,
-            input=message_dicts,  # type: ignore[arg-type]
-            text_format=self.output_type,
-            temperature=self.temperature,
-            max_output_tokens=self.max_completion_tokens,
-        )
-
-        if response.output_parsed is not None:
-            return response.output_parsed
-
-        raise ValueError('OpenAI error: Parsing failed')
